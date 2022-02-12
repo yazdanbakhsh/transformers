@@ -282,8 +282,8 @@ class GPT2Attention(nn.Module):
     # rima
     # Layer-wise attention scaling (amir: default FALSE)
     if self.scale_attn_by_inverse_layer_idx:
+      assert False, "ISCA: Oh No! We haven't done this!"
       attn_weights = attn_weights / float(self.layer_idx + 1)
-
 
     if not self.is_cross_attention:
       # if only "normal" attention layer implements causal mask
@@ -301,7 +301,95 @@ class GPT2Attention(nn.Module):
       attn_weights = attn_weights + attention_mask
 
     # amir
-
+    var = 0
+    sigmoid = nn.Sigmoid()
+    new_attention_weights = None
+    if self.quant:
+      mykey = "q"
+      newq = self.quantize(query, bit_num=self.kbit, alpha_key=mykey)
+      if self.early_stop:
+        new_attention_weights = torch.zeros(
+            (newq.shape[0], newq.shape[1], newq.shape[2], newq.shape[2])).cuda()
+      else:
+        mykey = "k"
+        newkey = self.quantize(key, bit_num=self.kbit, alpha_key=mykey)
+        attn_weights = torch.matmul(newq, newkey.transpose(-1, -2))
+      if attention_mask is not None:
+        attention_mask[attention_mask == -10000] = -1000
+        attn_weights = attn_weights + attention_mask
+        if new_attention_weights is not None:
+          new_attention_weights = new_attention_weights + attention_mask
+    if self.prun and self.early_stop:
+      self.sparsity = [0 for _ in range(self.kbit)]
+      same_sign = torch.sign(key) * torch.sign(query)
+      same_sign = torch.where(same_sign > 0, 1, 0)
+      q_abs_sum = torch.sum(torch.abs(query) * same_sign, 3)
+      bound_bit = 0
+      bound_bit = torch.zeros(self.kbit)
+      # Following lines pre-calculate the remaining maximum K value
+      # after completeing bit_num-th bit calculation
+      for bit_num in range(0, self.kbit):
+        bound_sum = bound_sum + 0.5**(self.kbit - bit_num)
+        bound_bit[self.kbit - 1 - bit_num] = bound_sum
+      bound_bit = bound_bit.cuda()
+      mykey = "k"
+      if self.six_sigma.get(mykey) is None:
+        std, _ = torch.std_mean(key)
+        alpha = 5 * std
+        self.six_sigma[mykey] = alpha
+        print("dict key: ", mykey, "Added Alpha: ", alpha)
+      else:
+        alpha = self.six_sigma.get(mykey)
+      k_clamp = key.clamp(-alpha, alpha)
+      for bit_num in range(1, self.kbit + 1):
+        k_quant = self.quantize_by_bit(
+            k_clamp, bit_num=bit_num, alpha_key=mykey, ori_bit_num=self.kbit)
+        k_clamp -= k_quant
+        new_attention_weights += torch.mathmul(query, k_quant.transpose(-2, -1))
+        for i in range(0, new_attention_weights.size(0)):
+          for j in range(0, new_attention_weights.size(1)):
+            # Kmax * Qsum
+            bound = bound_bit[bit_num - 1] * (self.six_sigma[mykey] /
+                                              bound_bit[0]) * q_abs_sum[i, j, :]
+            bound = bound.unsqueeze(-1)
+            bound = bound.repeat(1, new_attention_weights.size(3))
+            array = new_attention_weights[i, j, :, :]
+            new_array = self.soft_thres_layer(array + bound)
+            # Index of small (pruned out) values.
+            out_ind = torch.where(new_array < -999)
+            array[out_ind] = -1000
+            new_attention_weights[i, j, :, :] = array
+          row = new_attention_weights[i]
+          non_sparsity = (row > -999).sum() / (
+              (attention_mask[i, :, :, :] > -999).sum() * row.size(0) *
+              row.size(1))
+          sparsity = (1 - non_sparsity)
+          var += ((attention_mask[i, :, :, :] > -999).sum() * row.size(1) *
+                  row.size(2) - sigmoid(100 * (row + 999)).sum()) / (
+                      (attention_mask[i, :, :, :] > -999).sum() * row.size(1) *
+                      row.size(2)) * 100
+          self.sparsity[bit_num - 1] += sparsity.item()
+      self.sparsity = [i / new_attention_weights.size(0) for i in self.sparsity]
+      attn_weights = new_attention_weights
+      if self.scale_attn_weights:
+        attn_weights = attn_weights / (value.size(-1)**0.5)
+    elif self.prun and not self._early_stop:
+      new_attention_weights = torch.zeros(attn_weights.size()).cuda()
+      for i in range(0, attn_weights.size(0)):
+        row = attn_weights[i, :]
+        new_row = self.soft_thres_layer(row)
+        new_attention_weights[i, :] = new_row
+        var += ((attention_mask[i, :, :, :] > -999).sum() * new_row.size(1) *
+                new_row.size(2) - sigmoid(100 * (new_row + 999)).sum()) / (
+                    (attention_mask[i, :, :, :] > -999).sum() *
+                    new_row.size(1) * new_row.size(2)) * 100
+      non_sparsity = (new_attention_weights > -999).sum() / (
+          (attention_mask > -999).sum() * new_attention_weights.size(1) *
+          new_attention_weights.size(2))
+      sparsity = (1 - non_sparsity)
+      attn_weights = new_attention_weights
+      if self.scale_attn_weights:
+        attn_weights = attn_weights / (value.size(-1)**0.5)
     # rime
 
     attn_weights = nn.functional.softmax(attn_weights, dim=-1)
@@ -315,8 +403,13 @@ class GPT2Attention(nn.Module):
       attn_weights = attn_weights * head_mask
 
     attn_output = torch.matmul(attn_weights, value)
-
-    return attn_output, attn_weights
+    if self.prun and not self.early_stop:
+      return attn_output, attn_weights, var, sparsity
+    elif self.prun and self.early_stop:
+      return attn_output, attn_weights, var, self.sparsity
+    else:
+      return attn_output, attn_weights, 0, 0
+    return attn_output, attn_weights, 0, 0
 
   def _upcast_and_reordered_attn(self,
                                  query,
@@ -454,8 +547,8 @@ class GPT2Attention(nn.Module):
       attn_output, attn_weights = self._upcast_and_reordered_attn(
           query, key, value, attention_mask, head_mask)
     else:
-      attn_output, attn_weights = self._attn(query, key, value, attention_mask,
-                                             head_mask)
+      attn_output, attn_weights, var, sparsity = self._attn(
+          query, key, value, attention_mask, head_mask, output_atte)
 
     attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
     attn_output = self.c_proj(attn_output)
@@ -465,7 +558,12 @@ class GPT2Attention(nn.Module):
     if output_attentions:
       outputs += (attn_weights,)
 
-    return outputs  # a, present, (attentions)
+    if self.prun:
+      return outputs, var, sparsity
+    else:
+      return outputs, 0, 0
+
+    return outputs, 0, 0  # a, present, (attentions)
 
 
 class GPT2MLP(nn.Module):
@@ -517,7 +615,10 @@ class GPT2Block(nn.Module):
   ):
     residual = hidden_states
     hidden_states = self.ln_1(hidden_states)
-    attn_outputs = self.attn(
+    total_var = 0
+    total_sparsity = 0
+    # amir
+    attn_outputs, var, sparsity = self.attn(
         hidden_states,
         layer_past=layer_past,
         attention_mask=attention_mask,
@@ -525,6 +626,9 @@ class GPT2Block(nn.Module):
         use_cache=use_cache,
         output_attentions=output_attentions,
     )
+    total_var = var
+    total_sparsity = sparsity
+    # rima
     attn_output = attn_outputs[0]  # output_attn: a, present, (attentions)
     outputs = attn_outputs[1:]
     # residual connection
@@ -539,7 +643,7 @@ class GPT2Block(nn.Module):
         )
       residual = hidden_states
       hidden_states = self.ln_cross_attn(hidden_states)
-      cross_attn_outputs = self.crossattention(
+      cross_attn_outputs, var, sparsity = self.crossattention(
           hidden_states,
           attention_mask=attention_mask,
           head_mask=head_mask,
@@ -552,7 +656,8 @@ class GPT2Block(nn.Module):
       hidden_states = residual + attn_output
       outputs = outputs + cross_attn_outputs[
           2:]  # add cross attentions if we output attention weights
-
+      total_var += var
+      total_sparsity += sparsity
     residual = hidden_states
     hidden_states = self.ln_2(hidden_states)
     feed_forward_hidden_states = self.mlp(hidden_states)
@@ -564,7 +669,7 @@ class GPT2Block(nn.Module):
     else:
       outputs = (hidden_states,) + outputs[1:]
 
-    return outputs  # hidden_states, present, (attentions, cross_attentions)
+    return outputs, total_var, total_sparsity  # hidden_states, present, (attentions, cross_attentions)
 
 
 class GPT2PreTrainedModel(PreTrainedModel):
@@ -899,6 +1004,15 @@ class GPT2Model(GPT2PreTrainedModel):
       output_hidden_states=None,
       return_dict=None,
   ):
+
+    # amir
+    total_var = 0
+    total_sparsity = 0
+    if EARLY_STOP_FLAG:
+      total_sparsity = [0 for _ in range(KBIT)]
+    # rima
+
+
     output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
     output_hidden_states = (
         output_hidden_states if output_hidden_states is not None else
@@ -1015,7 +1129,6 @@ class GPT2Model(GPT2PreTrainedModel):
         all_hidden_states = all_hidden_states + (hidden_states,)
 
       if self.gradient_checkpointing and self.training:
-
         if use_cache:
           logger.warning(
               "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`..."
@@ -1030,7 +1143,7 @@ class GPT2Model(GPT2PreTrainedModel):
 
           return custom_forward
 
-        outputs = torch.utils.checkpoint.checkpoint(
+        outputs, var, sparsity = torch.utils.checkpoint.checkpoint(
             create_custom_forward(block),
             hidden_states,
             None,
@@ -1040,7 +1153,7 @@ class GPT2Model(GPT2PreTrainedModel):
             encoder_attention_mask,
         )
       else:
-        outputs = block(
+        outputs, var, sparsity = block(
             hidden_states,
             layer_past=layer_past,
             attention_mask=attention_mask,
@@ -1052,6 +1165,14 @@ class GPT2Model(GPT2PreTrainedModel):
         )
 
       hidden_states = outputs[0]
+      # amir
+      total_var += var
+      if not EARLY_STOP_FLAG:
+        total_sparsity += sparsity
+      else:
+        for kb in range(KBIT):
+          total_sparsity[kb] += sparsity[kb]
+      # rima
       if use_cache is True:
         presents = presents + (outputs[1],)
 
@@ -1068,6 +1189,10 @@ class GPT2Model(GPT2PreTrainedModel):
           if i == v[-1] and "cuda:" + str(k) != self.last_device:
             hidden_states = hidden_states.to("cuda:" + str(k + 1))
 
+    # amir
+    if EARLY_STOP_FLAG:
+      total_sparsity = [i / len(self.h) for i in total_sparsity]
+    # rima
     hidden_states = self.ln_f(hidden_states)
 
     hidden_states = hidden_states.view(output_shape)
@@ -1075,10 +1200,15 @@ class GPT2Model(GPT2PreTrainedModel):
     if output_hidden_states:
       all_hidden_states = all_hidden_states + (hidden_states,)
 
+    # amir
+    if not EARLY_STOP_FLAG:
+      total_sparsity = total_sparsity / len(self.h)
+    # rima
+
     if not return_dict:
       return tuple(v for v in [
           hidden_states, presents, all_hidden_states, all_self_attentions,
-          all_cross_attentions
+          all_cross_attentions, total_var, total_sparsity
       ] if v is not None)
 
     return BaseModelOutputWithPastAndCrossAttentions(
@@ -1087,7 +1217,7 @@ class GPT2Model(GPT2PreTrainedModel):
         hidden_states=all_hidden_states,
         attentions=all_self_attentions,
         cross_attentions=all_cross_attentions,
-    )
+    ), total_var, total_sparsity
 
 
 @add_start_docstrings(
@@ -1203,8 +1333,8 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
             ..., config.vocab_size]`
         """
     return_dict = return_dict if return_dict is not None else self.config.use_return_dict
-
-    transformer_outputs = self.transformer(
+    # amir
+    transformer_outputs, var, sparsity = self.transformer(
         input_ids,
         past_key_values=past_key_values,
         attention_mask=attention_mask,
@@ -1219,6 +1349,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
         output_hidden_states=output_hidden_states,
         return_dict=return_dict,
     )
+    # rima
     hidden_states = transformer_outputs[0]
 
     # Set device for model parallelism
@@ -1243,7 +1374,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
       return ((loss,) + output) if loss is not None else output
 
     return CausalLMOutputWithCrossAttentions(
-        loss=loss,
+        loss=loss + 1e-5 * (-var) if var else loss,
         logits=lm_logits,
         past_key_values=transformer_outputs.past_key_values,
         hidden_states=transformer_outputs.hidden_states,
