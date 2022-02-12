@@ -373,7 +373,7 @@ class GPT2Attention(nn.Module):
       attn_weights = new_attention_weights
       if self.scale_attn_weights:
         attn_weights = attn_weights / (value.size(-1)**0.5)
-    elif self.prun and not self._early_stop:
+    elif self.prun and not self.early_stop:
       new_attention_weights = torch.zeros(attn_weights.size()).cuda()
       for i in range(0, attn_weights.size(0)):
         row = attn_weights[i, :]
