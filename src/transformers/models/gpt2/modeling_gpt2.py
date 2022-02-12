@@ -197,6 +197,62 @@ class GPT2Attention(nn.Module):
     self.six_sigma = dict()
     # rima
 
+  # amir
+  def quantize_by_bit(self, w, bit_num, alpha_key, ori_bit_num):
+    alpha = self.six_sigma.get(alpha_key)
+    if bit_num == 1:
+      return torch.zeros_like(w).cuda()
+
+    w = torch.div(w, alpha)
+    w = w.clamp(min=-1, max=1)
+    factor = (w * (2**(ori_bit_num - 1) - 1)).round()
+    max_factor = 2**((ori_bit_num - 1) - (bit_num - 1))
+    max_value = (
+        (factor // max_factor) * max_factor) / (2**(ori_bit_num - 1) - 1)
+    return max_value * alpha
+
+  def quantize(self, w, bit_num=12, alpha_key=None):
+    """Computes the quantized value of tensor w.
+
+    Args:
+      w: input argument.
+      bit_num: Number of bits, at least 2.
+      alpha_key: key value representing the target vector.
+
+    Returns:
+      Quantized values.
+    """
+    if self.six_sigma.get(alpha_key) is None:
+      std, _ = torch.std_mean(w)
+
+      if alpha_key == "k":
+        alpha = 6.0 * std
+        print("Number of bit for k: ", bit_num)
+      if alpha_key == "q":
+        alpha = 6.0 * std
+        print("number of bit for q", bit_num)
+      if alpha_key == "scores":
+        alpha = 4 * std
+        bit_num = 24
+      if alpha_key == "scores_softmax":
+        alpha = 1.0
+        bit_num = 16
+      if alpha_key == "v":
+        alpha = 13 * std
+        bit_num = 16
+      if alpha_key == "out":
+        alpha = 15 * std
+        bit_num = 20
+      self.six_sigma[alpha_key] = alpha
+      print("dict key:", alpha_key, "added alpha", alpha)
+    else:
+      alpha = self.six_sigma.get(alpha_key)
+    w = torch.div(w, alpha)
+    w = w.clamp(min=-1, max=1)
+    w = (w * (2**(bit_num - 1) - 1)).round() / (2**(bit_num - 1) - 1)
+    return w * alpha
+  # rima
+
   def prune_heads(self, heads):
     if len(heads) == 0:
       return
@@ -219,12 +275,15 @@ class GPT2Attention(nn.Module):
   def _attn(self, query, key, value, attention_mask=None, head_mask=None):
     attn_weights = torch.matmul(query, key.transpose(-1, -2))
 
-    if self.scale_attn_weights:
-      attn_weights = attn_weights / (value.size(-1)**0.5)
-
-    # Layer-wise attention scaling
+    # amir: only scale if we don't do pruning.
+    if (not self.prun) and (not self.quant) and (not self.early_stop):
+      if self.scale_attn_weights:
+        attn_weights = attn_weights / (value.size(-1)**0.5)
+    # rima
+    # Layer-wise attention scaling (amir: default FALSE)
     if self.scale_attn_by_inverse_layer_idx:
       attn_weights = attn_weights / float(self.layer_idx + 1)
+
 
     if not self.is_cross_attention:
       # if only "normal" attention layer implements causal mask
@@ -235,8 +294,15 @@ class GPT2Attention(nn.Module):
                                  self.masked_bias.to(attn_weights.dtype))
 
     if attention_mask is not None:
+      # amir
+      attn_weights[attn_weights == -10000] = -1000
+      # rima
       # Apply the attention mask
       attn_weights = attn_weights + attention_mask
+
+    # amir
+
+    # rime
 
     attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
@@ -384,6 +450,7 @@ class GPT2Attention(nn.Module):
       present = None
 
     if self.reorder_and_upcast_attn:
+      assert False, "AMIR: Oh no! This path not working!"
       attn_output, attn_weights = self._upcast_and_reordered_attn(
           query, key, value, attention_mask, head_mask)
     else:
