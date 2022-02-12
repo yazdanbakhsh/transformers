@@ -2279,8 +2279,13 @@ class Trainer:
             xm.master_print(met.metrics_report())
 
         self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, output.metrics)
-
         self._memory_tracker.stop_and_update_metrics(output.metrics)
+        # amir
+        all_alpha = [param for name, param in self.model.named_parameters() if 'alpha' in name]
+        if len(all_alpha) > 0:
+          print(f'ISCA: Average Threshold: {sum(all_alpha)/len(all_alpha)}')
+        print(f'ISCA: Average Sparsity: {100 * sum(self.model.sparsity) / len(self.model.sparsity)}%')
+        # rima
 
         return output.metrics
 
