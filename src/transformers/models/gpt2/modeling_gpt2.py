@@ -686,6 +686,7 @@ class GPT2PreTrainedModel(PreTrainedModel):
   supports_gradient_checkpointing = True
 
   def __init__(self, *inputs, **kwargs):
+    print("Amir load!")
     super().__init__(*inputs, **kwargs)
 
   def _init_weights(self, module):
