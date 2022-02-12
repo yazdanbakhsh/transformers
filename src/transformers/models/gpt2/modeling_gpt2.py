@@ -548,7 +548,7 @@ class GPT2Attention(nn.Module):
           query, key, value, attention_mask, head_mask)
     else:
       attn_output, attn_weights, var, sparsity = self._attn(
-          query, key, value, attention_mask, head_mask, output_atte)
+          query, key, value, attention_mask, head_mask)
 
     attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
     attn_output = self.c_proj(attn_output)
