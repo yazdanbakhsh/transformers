@@ -537,19 +537,15 @@ class GPT2Attention(nn.Module):
       query, key, value = self.c_attn(hidden_states).split(
           self.split_size, dim=2)
 
-    print("Query Shape: ", query.size())
-    print("Key Shape: ", key.size())
-    print("Value Shape: ", value.size())
-
+    # GPT2-LARGE:
+    # Before: [Batch, 1024, 1280]
     query = self._split_heads(query, self.num_heads, self.head_dim)
     key = self._split_heads(key, self.num_heads, self.head_dim)
     value = self._split_heads(value, self.num_heads, self.head_dim)
-
-    print("Query After Shape: ", query.size())
-    print("Key After Shape: ", key.size())
-    print("Value After Shape: ", value.size())
+    # After: [Batch, 20, 1024, 64]
 
     if layer_past is not None:
+      print("Layer past")
       past_key, past_value = layer_past
       key = torch.cat((past_key, key), dim=-2)
       value = torch.cat((past_value, value), dim=-2)
