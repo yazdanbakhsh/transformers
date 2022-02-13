@@ -1016,7 +1016,7 @@ class GPT2Model(GPT2PreTrainedModel):
     total_sparsity = 0
     if EARLY_STOP_FLAG:
       total_sparsity = [0 for _ in range(KBIT)]
-    min_attn_weights = []
+    self.min_attn_weights = []
     # rima
 
     output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
