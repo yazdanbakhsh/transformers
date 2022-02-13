@@ -276,6 +276,7 @@ class GPT2Attention(nn.Module):
 
   def _attn(self, query, key, value, attention_mask=None, head_mask=None):
     attn_weights = torch.matmul(query, key.transpose(-1, -2))
+    self.min_attn_weights = torch.min(attn_weights)
 
     # amir: only scale if we don't do pruning.
     if (not self.prun) and (not self.quant) and (not self.early_stop):
@@ -306,7 +307,7 @@ class GPT2Attention(nn.Module):
     var = 0
     sigmoid = nn.Sigmoid()
     new_attention_weights = None
-    self.min_attn_weights = torch.min(attn_weights)
+
     if self.quant:
       assert False, "Oh No! We are not runnin this -- no quant"
       mykey = "q"
