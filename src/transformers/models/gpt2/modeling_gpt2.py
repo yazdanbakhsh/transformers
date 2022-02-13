@@ -192,7 +192,7 @@ class GPT2Attention(nn.Module):
     self.prun = PRUN_FLAG
     if self.prun:
       # ALPHA: we need to tune alpha.
-      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1000.0, alpha=-20.0)
+      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1000.0, alpha=-21.0)
     self.quant = QUANT_FLAG
     self.early_stop = EARLY_STOP_FLAG
     self.kbit = KBIT
@@ -1143,6 +1143,7 @@ class GPT2Model(GPT2PreTrainedModel):
         all_hidden_states = all_hidden_states + (hidden_states,)
 
       if self.gradient_checkpointing and self.training:
+        assert False, "Oh No! This path is not working!"
         if use_cache:
           logger.warning(
               "`use_cache=True` is incompatible with gradient checkpointing. Setting `use_cache=False`..."
@@ -1189,7 +1190,7 @@ class GPT2Model(GPT2PreTrainedModel):
         for kb in range(KBIT):
           total_sparsity[kb] += sparsity[kb]
       # rima
-      if use_cache is True:
+      if use_cache:
         presents = presents + (outputs[1],)
 
       if output_attentions:
