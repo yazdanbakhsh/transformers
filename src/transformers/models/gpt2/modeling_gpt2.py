@@ -192,7 +192,7 @@ class GPT2Attention(nn.Module):
     self.prun = PRUN_FLAG
     if self.prun:
       # ALPHA: we need to tune alpha.
-      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1000.0, alpha=-20.0)
+      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1000.0, alpha=-25.0)
     self.quant = QUANT_FLAG
     self.early_stop = EARLY_STOP_FLAG
     self.kbit = KBIT
@@ -1374,7 +1374,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
         output_hidden_states=output_hidden_states,
         return_dict=return_dict,
     )
-    print("Min attention weights: ", min_attn_weights)
+    # print("Min attention weights: ", min_attn_weights)
     if not EARLY_STOP_FLAG:
       self.sparsity.append(sparsity)
     else:
