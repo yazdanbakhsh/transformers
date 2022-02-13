@@ -281,7 +281,7 @@ class GPT2Attention(nn.Module):
     attn_weights = torch.matmul(query, key.transpose(-1, -2))
     # attn_weights: [Batch, 20, 1024, 1024]
     self.min_attn_weights = torch.min(attn_weights)
-    print("Attention Mask: ", attention_mask)
+    print("Attention Mask Zeros: ", torch.count_nonzero(attention_mask))
 
     # amir: only scale if we don't do pruning.
     if (not self.prun) and (not self.quant) and (not self.early_stop):
@@ -295,7 +295,7 @@ class GPT2Attention(nn.Module):
 
     if not self.is_cross_attention:
       # if only "normal" attention layer implements causal mask
-      print("Cross attention!!!")
+      # AMIR-ISCA: We have cross attention!
       query_length, key_length = query.size(-2), key.size(-2)
       causal_mask = self.bias[:, :, key_length -
                               query_length:key_length, :key_length].bool()
