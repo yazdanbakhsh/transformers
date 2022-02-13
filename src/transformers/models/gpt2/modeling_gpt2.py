@@ -325,7 +325,7 @@ class GPT2Attention(nn.Module):
         if new_attention_weights is not None:
           new_attention_weights = new_attention_weights + attention_mask
     if self.prun and self.early_stop:
-      raise False, "Oh No! We are not running this! -- No Early Stop!"
+      assert False, "Oh No! We are not running this! -- No Early Stop!"
       self.sparsity = [0 for _ in range(self.kbit)]
       same_sign = torch.sign(key) * torch.sign(query)
       same_sign = torch.where(same_sign > 0, 1, 0)
