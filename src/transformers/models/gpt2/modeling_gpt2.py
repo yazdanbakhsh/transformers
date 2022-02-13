@@ -555,7 +555,7 @@ class GPT2Attention(nn.Module):
       attn_output, attn_weights = self._upcast_and_reordered_attn(
           query, key, value, attention_mask, head_mask)
     else:
-      attn_output, attn_weights, var, sparsity = self._attn(
+      attn_output, attn_weights, var, sparsity, min_attn_weights = self._attn(
           query, key, value, attention_mask, head_mask)
 
     attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
@@ -567,11 +567,11 @@ class GPT2Attention(nn.Module):
       outputs += (attn_weights,)
 
     if self.prun:
-      return outputs, var, sparsity
+      return outputs, var, sparsity, min_attn_weights
     else:
-      return outputs, 0, 0
+      return outputs, 0, 0, 0
 
-    return outputs, 0, 0  # a, present, (attentions)
+    return outputs, 0, 0, 0  # a, present, (attentions)
 
 
 class GPT2MLP(nn.Module):
