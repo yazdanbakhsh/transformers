@@ -148,6 +148,8 @@ class GPT2Attention(nn.Module):
     super().__init__()
 
     max_positions = config.max_position_embeddings
+    # `register_buffer`: This is typically used to register a buffer that
+    # should not to be considered a model parameter.
     self.register_buffer(
         "bias",
         torch.tril(
@@ -189,8 +191,8 @@ class GPT2Attention(nn.Module):
     # amir
     self.prun = PRUN_FLAG
     if self.prun:
-      # we need to tune alpha.
-      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1000.0, alpha=2.5)
+      # ALPHA: we need to tune alpha.
+      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1000.0, alpha=1.5)
     self.quant = QUANT_FLAG
     self.early_stop = EARLY_STOP_FLAG
     self.kbit = KBIT
@@ -295,7 +297,7 @@ class GPT2Attention(nn.Module):
 
     if attention_mask is not None:
       # amir
-      attn_weights[attn_weights == -10000] = -1000
+      attention_mask[attention_mask == -10000] = -1000
       # rima
       # Apply the attention mask
       attn_weights = attn_weights + attention_mask
@@ -305,21 +307,25 @@ class GPT2Attention(nn.Module):
     sigmoid = nn.Sigmoid()
     new_attention_weights = None
     if self.quant:
+      assert False, "Oh No! We are not runnin this -- no quant"
       mykey = "q"
       newq = self.quantize(query, bit_num=self.kbit, alpha_key=mykey)
       if self.early_stop:
         new_attention_weights = torch.zeros(
-            (newq.shape[0], newq.shape[1], newq.shape[2], newq.shape[2])).cuda()
+            (newq.shape[0], newq.shape[1], newq.shape[2],
+             newq.shape[2])).cuda()
       else:
         mykey = "k"
         newkey = self.quantize(key, bit_num=self.kbit, alpha_key=mykey)
-        attn_weights = torch.matmul(newq, newkey.transpose(-1, -2))
+        attn_weights = torch.matmul(newq, newkey.transpose(-1, -2)) / (
+            value.size(-1)**0.5)
       if attention_mask is not None:
         attention_mask[attention_mask == -10000] = -1000
         attn_weights = attn_weights + attention_mask
         if new_attention_weights is not None:
           new_attention_weights = new_attention_weights + attention_mask
     if self.prun and self.early_stop:
+      raise False, "Oh No! We are not running this! -- No Early Stop!"
       self.sparsity = [0 for _ in range(self.kbit)]
       same_sign = torch.sign(key) * torch.sign(query)
       same_sign = torch.where(same_sign > 0, 1, 0)
@@ -406,6 +412,7 @@ class GPT2Attention(nn.Module):
     if self.prun and not self.early_stop:
       return attn_output, attn_weights, var, sparsity
     elif self.prun and self.early_stop:
+      assert False, "Oh No! We are not running this! -- No Early Stop!"
       return attn_output, attn_weights, var, self.sparsity
     else:
       return attn_output, attn_weights, 0, 0
@@ -537,7 +544,7 @@ class GPT2Attention(nn.Module):
       key = torch.cat((past_key, key), dim=-2)
       value = torch.cat((past_value, value), dim=-2)
 
-    if use_cache is True:
+    if use_cache:
       present = (key, value)
     else:
       present = None
@@ -615,10 +622,8 @@ class GPT2Block(nn.Module):
   ):
     residual = hidden_states
     hidden_states = self.ln_1(hidden_states)
-    total_var = 0
-    total_sparsity = 0
     # amir
-    attn_outputs, var, sparsity = self.attn(
+    attn_outputs, total_var, total_sparsity = self.attn(
         hidden_states,
         layer_past=layer_past,
         attention_mask=attention_mask,
@@ -626,8 +631,6 @@ class GPT2Block(nn.Module):
         use_cache=use_cache,
         output_attentions=output_attentions,
     )
-    total_var = var
-    total_sparsity = sparsity
     # rima
     attn_output = attn_outputs[0]  # output_attn: a, present, (attentions)
     outputs = attn_outputs[1:]
@@ -668,8 +671,8 @@ class GPT2Block(nn.Module):
       outputs = (hidden_states,) + outputs
     else:
       outputs = (hidden_states,) + outputs[1:]
-
-    return outputs, total_var, total_sparsity  # hidden_states, present, (attentions, cross_attentions)
+    # hidden_states, present, (attentions, cross_attentions)
+    return outputs, total_var, total_sparsity
 
 
 class GPT2PreTrainedModel(PreTrainedModel):
@@ -1244,6 +1247,13 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
     # Initialize weights and apply final processing
     self.post_init()
 
+    # amir
+    if not EARLY_STOP_FLAG:
+      self.sparsity = []
+    else:
+      self.sparsity = [[] for _ in range(KBIT)]
+    # rima
+
   @add_start_docstrings(PARALLELIZE_DOCSTRING)
   def parallelize(self, device_map=None):
     self.device_map = (
@@ -1349,6 +1359,11 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
         output_hidden_states=output_hidden_states,
         return_dict=return_dict,
     )
+    if not EARLY_STOP_FLAG:
+      self.sparsity.append(sparsity)
+    else:
+      for i in range(KBIT):
+        self.sparsity[i].append(sparsity[i])
     # rima
     hidden_states = transformer_outputs[0]
 
