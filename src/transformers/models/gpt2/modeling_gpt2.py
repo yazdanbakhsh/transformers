@@ -1399,6 +1399,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
           shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
 
     if not return_dict:
+      print('Not return dict')
       output = (lm_logits,) + transformer_outputs[1:]
       return ((loss,) + output) if loss is not None else output
 
