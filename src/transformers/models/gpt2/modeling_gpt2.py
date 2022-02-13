@@ -532,17 +532,22 @@ class GPT2Attention(nn.Module):
       query = self.q_attn(hidden_states)
       key, value = self.c_attn(encoder_hidden_states).split(
           self.split_size, dim=2)
-      print("Query Shape: ", query.size())
-      print("Key Shape: ", key.size())
-      print("Value Shape: ", value.size())
       attention_mask = encoder_attention_mask
     else:
       query, key, value = self.c_attn(hidden_states).split(
           self.split_size, dim=2)
 
+    print("Query Shape: ", query.size())
+    print("Key Shape: ", key.size())
+    print("Value Shape: ", value.size())
+
     query = self._split_heads(query, self.num_heads, self.head_dim)
     key = self._split_heads(key, self.num_heads, self.head_dim)
     value = self._split_heads(value, self.num_heads, self.head_dim)
+
+    print("Query After Shape: ", query.size())
+    print("Key After Shape: ", key.size())
+    print("Value After Shape: ", value.size())
 
     if layer_past is not None:
       past_key, past_value = layer_past
