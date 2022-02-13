@@ -532,6 +532,9 @@ class GPT2Attention(nn.Module):
       query = self.q_attn(hidden_states)
       key, value = self.c_attn(encoder_hidden_states).split(
           self.split_size, dim=2)
+      print("Query Shape: ", query.size())
+      print("Key Shape: ", key.size())
+      print("Value Shape: ", value.size())
       attention_mask = encoder_attention_mask
     else:
       query, key, value = self.c_attn(hidden_states).split(
@@ -1364,7 +1367,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
         output_hidden_states=output_hidden_states,
         return_dict=return_dict,
     )
-    print("Min Sparsity: ", min_attn_weights)
+    print("Min attention weights: ", min_attn_weights)
     if not EARLY_STOP_FLAG:
       self.sparsity.append(sparsity)
     else:
