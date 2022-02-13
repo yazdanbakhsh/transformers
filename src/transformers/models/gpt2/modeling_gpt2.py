@@ -301,10 +301,6 @@ class GPT2Attention(nn.Module):
                               query_length:key_length, :key_length].bool()
       attn_weights = torch.where(causal_mask, attn_weights,
                                  self.masked_bias.to(attn_weights.dtype))
-    print("Atten Weight > Masked Bias: ",
-          (attn_weights > self.masked_bias.to(attn_weights.dtype)).sum())
-    print("Atten Weight == Masked Bias: ",
-          (attn_weights == self.masked_bias.to(attn_weights.dtype)).sum())
     if attention_mask is not None:
       # amir
       attention_mask[attention_mask == -10000] = -1000
