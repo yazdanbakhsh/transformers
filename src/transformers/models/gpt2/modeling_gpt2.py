@@ -280,8 +280,6 @@ class GPT2Attention(nn.Module):
     # transpose(-1, -2): [Batch, 20, 1024, 64] -> [Batch, 20, 64, 1024]
     attn_weights = torch.matmul(query, key.transpose(-1, -2))
     # attn_weights: [Batch, 20, 1024, 1024]
-    self.min_attn_weights = 0.0
-    # Amir: Mask is all zero!!!
 
     # amir: only scale if we don't do pruning.
     if (not self.prun) and (not self.quant) and (not self.early_stop):
