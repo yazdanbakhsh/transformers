@@ -282,6 +282,8 @@ class GPT2Attention(nn.Module):
     # attn_weights: [Batch, 20, 1024, 1024]
     self.min_attn_weights = torch.min(attn_weights)
     print("Attention Mask Zeros: ", torch.count_nonzero(attention_mask))
+    print("Attention Mask Max: ", torch.min(attention_mask))
+    print("Attention Mask Min: ", torch.max(attention_mask))
 
     # amir: only scale if we don't do pruning.
     if (not self.prun) and (not self.quant) and (not self.early_stop):
