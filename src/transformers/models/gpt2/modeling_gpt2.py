@@ -545,7 +545,7 @@ class GPT2Attention(nn.Module):
     # After: [Batch, 20, 1024, 64]
 
     if layer_past is not None:
-      print("Layer past")
+      assert False, "ISCA: Oh No! Not calling this path!"
       past_key, past_value = layer_past
       key = torch.cat((past_key, key), dim=-2)
       value = torch.cat((past_value, value), dim=-2)
