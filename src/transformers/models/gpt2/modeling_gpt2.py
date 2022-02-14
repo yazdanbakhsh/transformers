@@ -156,7 +156,7 @@ class GPT2Attention(nn.Module):
                        dtype=torch.uint8)).view(1, 1, max_positions,
                                                 max_positions),
     )
-    self.register_buffer("masked_bias", torch.tensor(-1e3))
+    self.register_buffer("masked_bias", torch.tensor(-1e4))
 
     self.embed_dim = config.hidden_size
     self.num_heads = config.num_attention_heads
@@ -191,7 +191,8 @@ class GPT2Attention(nn.Module):
     self.prun = PRUN_FLAG
     if self.prun:
       # ALPHA: we need to tune alpha.
-      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1000.0, alpha=-20.0)
+      # Change C to the same value as casual mask.
+      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1e4, alpha=-20.0)
     self.quant = QUANT_FLAG
     self.early_stop = EARLY_STOP_FLAG
     self.kbit = KBIT
@@ -282,6 +283,7 @@ class GPT2Attention(nn.Module):
 
     # amir: only scale if we don't do pruning.
     if (not self.prun) and (not self.quant) and (not self.early_stop):
+      assert False, "Oh no! we are not running this!"
       if self.scale_attn_weights:
         attn_weights = attn_weights / (value.size(-1)**0.5)
     # rima
@@ -318,7 +320,6 @@ class GPT2Attention(nn.Module):
     var = 0
     sigmoid = nn.Sigmoid()
     new_attention_weights = None
-
     # Amir: Using the actual mask
     query_length, key_length = query.size(-2), key.size(-2)
     my_causal_mask = self.bias[:, :, key_length -
@@ -411,12 +412,13 @@ class GPT2Attention(nn.Module):
         row = attn_weights[i, :]
         new_row = self.soft_thres_layer(row)
         new_attention_weights[i, :] = new_row
-        var += ((my_actual_mask[i, :, :, :] > -999).sum() * new_row.size(1) *
-                new_row.size(2) - sigmoid(100 * (new_row + 999)).sum()) / (
-                    (my_actual_mask[i, :, :, :] > -999).sum() *
-                    new_row.size(1) * new_row.size(2)) * 100
-      non_sparsity = (new_attention_weights > -999).sum() / (
-          (my_actual_mask > -999).sum() * new_attention_weights.size(1) *
+        var += (
+            (my_actual_mask[i, :, :, :] > -1e4 + 1).sum() * new_row.size(1) *
+            new_row.size(2) - sigmoid(100 * (new_row + 1e4 - 1)).sum()) / (
+                (my_actual_mask[i, :, :, :] > -1e4 + 1).sum() *
+                new_row.size(1) * new_row.size(2)) * 100
+      non_sparsity = (new_attention_weights > -1e4 + 1).sum() / (
+          (my_actual_mask > -1e4 + 1).sum() * new_attention_weights.size(1) *
           new_attention_weights.size(2))
       sparsity = (1 - non_sparsity)
       attn_weights = new_attention_weights
