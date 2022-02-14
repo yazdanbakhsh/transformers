@@ -23,7 +23,9 @@ class soft_thres_func(torch.autograd.Function):
     tanh = torch.tanh(s * (x - alpha))
     coef = torch.where(x > alpha, x, -c)
     output = coef * tanh
-    # alpha.register_hook(lambda grad: print(grad))
+    alpha.register_hook(lambda grad: print(grad))
+    s.register_hook(lambda grad: print(grad))
+    c.register_hook(lambda grad: print(grad))
     return output
 
   @staticmethod
