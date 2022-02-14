@@ -191,7 +191,7 @@ class GPT2Attention(nn.Module):
     self.prun = PRUN_FLAG
     if self.prun:
       # ALPHA: we need to tune alpha.
-      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1000.0, alpha=-18.0)
+      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1000.0, alpha=-20.0)
     self.quant = QUANT_FLAG
     self.early_stop = EARLY_STOP_FLAG
     self.kbit = KBIT
@@ -328,7 +328,7 @@ class GPT2Attention(nn.Module):
                                  self.masked_bias.to(attn_weights.dtype))
     my_actual_mask[my_actual_mask != self.masked_bias] = torch.tensor(0.0).to(
         attn_weights.dtype).cuda()
-    print("size:::::", my_actual_mask.size())
+    # my_actual_mask [B, 1, 1, 1024]
     # Rima
 
     if self.quant:
