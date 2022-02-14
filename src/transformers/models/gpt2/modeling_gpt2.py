@@ -286,18 +286,18 @@ class GPT2Attention(nn.Module):
         attn_weights = attn_weights / (value.size(-1)**0.5)
     # rima
     # Layer-wise attention scaling (amir: default FALSE)
-    if self.scale_attn_by_inverse_layer_idx:
-      assert False, "ISCA: Oh No! We haven't done this!"
-      attn_weights = attn_weights / float(self.layer_idx + 1)
+      if self.scale_attn_by_inverse_layer_idx:
+        assert False, "ISCA: Oh No! We haven't done this!"
+        attn_weights = attn_weights / float(self.layer_idx + 1)
 
-    if not self.is_cross_attention:
-      # if only "normal" attention layer implements causal mask
-      # AMIR-ISCA: This is running! Not cross attention!
-      query_length, key_length = query.size(-2), key.size(-2)
-      causal_mask = self.bias[:, :, key_length -
-                              query_length:key_length, :key_length].bool()
-      attn_weights = torch.where(causal_mask, attn_weights,
-                                 self.masked_bias.to(attn_weights.dtype))
+      if not self.is_cross_attention:
+        # if only "normal" attention layer implements causal mask
+        # AMIR-ISCA: This is running! Not cross attention!
+        query_length, key_length = query.size(-2), key.size(-2)
+        causal_mask = self.bias[:, :, key_length -
+                                query_length:key_length, :key_length].bool()
+        attn_weights = torch.where(causal_mask, attn_weights,
+                                   self.masked_bias.to(attn_weights.dtype))
     if attention_mask is not None:
       # amir
       attention_mask[attention_mask == -10000] = -1000
@@ -401,6 +401,17 @@ class GPT2Attention(nn.Module):
       attn_weights = new_attention_weights
       if self.scale_attn_weights:
         attn_weights = attn_weights / (value.size(-1)**0.5)
+      if self.scale_attn_by_inverse_layer_idx:
+        assert False, "ISCA: Oh No! We haven't done this!"
+        attn_weights = attn_weights / float(self.layer_idx + 1)
+      if not self.is_cross_attention:
+        # if only "normal" attention layer implements causal mask
+        # AMIR-ISCA: This is running! Not cross attention!
+        query_length, key_length = query.size(-2), key.size(-2)
+        causal_mask = self.bias[:, :, key_length -
+                                query_length:key_length, :key_length].bool()
+        attn_weights = torch.where(causal_mask, attn_weights,
+                                   self.masked_bias.to(attn_weights.dtype))
     # rime
 
     attn_weights = nn.functional.softmax(attn_weights, dim=-1)
@@ -420,8 +431,8 @@ class GPT2Attention(nn.Module):
       assert False, "Oh No! We are not running this! -- No Early Stop!"
       return attn_output, attn_weights, var, self.sparsity
     else:
-      return attn_output, attn_weights, 0, 0, 0
-    return attn_output, attn_weights, 0, 0, 0
+      return attn_output, attn_weights, 0, 0
+    return attn_output, attn_weights, 0, 0
 
   def _upcast_and_reordered_attn(self,
                                  query,
