@@ -1551,7 +1551,7 @@ class Trainer:
         self.is_in_train = False
 
         self._memory_tracker.stop_and_update_metrics(metrics)
-
+        print(metrics)
         self.log(metrics)
 
         self.control = self.callback_handler.on_train_end(args, self.state, self.control)
