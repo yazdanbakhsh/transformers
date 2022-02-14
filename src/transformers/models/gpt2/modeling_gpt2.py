@@ -156,7 +156,7 @@ class GPT2Attention(nn.Module):
                        dtype=torch.uint8)).view(1, 1, max_positions,
                                                 max_positions),
     )
-    self.register_buffer("masked_bias", torch.tensor(-1e4))
+    self.register_buffer("masked_bias", torch.tensor(-1e3))
 
     self.embed_dim = config.hidden_size
     self.num_heads = config.num_attention_heads
@@ -298,6 +298,14 @@ class GPT2Attention(nn.Module):
                                 query_length:key_length, :key_length].bool()
         attn_weights = torch.where(causal_mask, attn_weights,
                                    self.masked_bias.to(attn_weights.dtype))
+    if not self.is_cross_attention:
+      # if only "normal" attention layer implements causal mask
+      # AMIR-ISCA: This is running! Not cross attention!
+      query_length, key_length = query.size(-2), key.size(-2)
+      causal_mask = self.bias[:, :, key_length -
+                              query_length:key_length, :key_length].bool()
+      attn_weights = torch.where(causal_mask, attn_weights,
+                                 self.masked_bias.to(attn_weights.dtype))
     if attention_mask is not None:
       # amir
       attention_mask[attention_mask == -10000] = -1000
@@ -309,6 +317,14 @@ class GPT2Attention(nn.Module):
     var = 0
     sigmoid = nn.Sigmoid()
     new_attention_weights = None
+
+    # Amir: Using the actual mask
+    query_length, key_length = query.size(-2), key.size(-2)
+    my_causal_mask = self.bias[:, :, key_length -
+                               query_length:key_length, :key_length].bool()
+    my_actual_mask = torch.where(my_causal_mask, 0.0,
+                                 self.masked_bias.to(attn_weights.dtype))
+    # Rima
 
     if self.quant:
       assert False, "Oh No! We are not runnin this -- no quant"
@@ -390,28 +406,17 @@ class GPT2Attention(nn.Module):
         row = attn_weights[i, :]
         new_row = self.soft_thres_layer(row)
         new_attention_weights[i, :] = new_row
-        var += ((attention_mask[i, :, :, :] > -999).sum() * new_row.size(1) *
+        var += ((my_actual_mask[i, :, :, :] > -999).sum() * new_row.size(1) *
                 new_row.size(2) - sigmoid(100 * (new_row + 999)).sum()) / (
-                    (attention_mask[i, :, :, :] > -999).sum() *
+                    (my_actual_mask[i, :, :, :] > -999).sum() *
                     new_row.size(1) * new_row.size(2)) * 100
       non_sparsity = (new_attention_weights > -999).sum() / (
-          (attention_mask > -999).sum() * new_attention_weights.size(1) *
+          (my_actual_mask > -999).sum() * new_attention_weights.size(1) *
           new_attention_weights.size(2))
       sparsity = (1 - non_sparsity)
       attn_weights = new_attention_weights
       if self.scale_attn_weights:
         attn_weights = attn_weights / (value.size(-1)**0.5)
-      if self.scale_attn_by_inverse_layer_idx:
-        assert False, "ISCA: Oh No! We haven't done this!"
-        attn_weights = attn_weights / float(self.layer_idx + 1)
-      if not self.is_cross_attention:
-        # if only "normal" attention layer implements causal mask
-        # AMIR-ISCA: This is running! Not cross attention!
-        query_length, key_length = query.size(-2), key.size(-2)
-        causal_mask = self.bias[:, :, key_length -
-                                query_length:key_length, :key_length].bool()
-        attn_weights = torch.where(causal_mask, attn_weights,
-                                   self.masked_bias.to(attn_weights.dtype))
     # rime
 
     attn_weights = nn.functional.softmax(attn_weights, dim=-1)
