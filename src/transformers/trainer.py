@@ -1998,7 +1998,8 @@ class Trainer:
             loss = self.deepspeed.backward(loss)
         else:
             loss.backward()
-
+        for p in model.parameters():
+          print(p.grad.norm())
         return loss.detach()
 
     def compute_loss(self, model, inputs, return_outputs=False):
