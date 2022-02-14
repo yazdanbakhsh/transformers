@@ -392,7 +392,7 @@ class GPT2Attention(nn.Module):
         new_attention_weights[i, :] = new_row
         var += ((attention_mask[i, :, :, :] > -999).sum() * new_row.size(1) *
                 new_row.size(2) - sigmoid(100 * (new_row + 999)).sum()) / (
-                    (attention_mask[i, :, :, :] > -999).sum() *
+                    ((attention_mask[i, :, :, :] > -999).sum() + 1e-08) *
                     new_row.size(1) * new_row.size(2)) * 100
       non_sparsity = (new_attention_weights > -999).sum() / (
           (attention_mask > -999).sum() * new_attention_weights.size(1) *
