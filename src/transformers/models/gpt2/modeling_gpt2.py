@@ -157,7 +157,6 @@ class GPT2Attention(nn.Module):
                                                 max_positions),
     )
     self.register_buffer("masked_bias", torch.tensor(-1e4))
-    self.register_buffer("min_attn_weights", torch.tensor(0.0))
 
     self.embed_dim = config.hidden_size
     self.num_heads = config.num_attention_heads
@@ -416,10 +415,10 @@ class GPT2Attention(nn.Module):
 
     attn_output = torch.matmul(attn_weights, value)
     if self.prun and not self.early_stop:
-      return attn_output, attn_weights, var, sparsity, self.min_attn_weights
+      return attn_output, attn_weights, var, sparsity
     elif self.prun and self.early_stop:
       assert False, "Oh No! We are not running this! -- No Early Stop!"
-      return attn_output, attn_weights, var, self.sparsity, self.min_attn_weights
+      return attn_output, attn_weights, var, self.sparsity
     else:
       return attn_output, attn_weights, 0, 0, 0
     return attn_output, attn_weights, 0, 0, 0
@@ -564,9 +563,8 @@ class GPT2Attention(nn.Module):
       attn_output, attn_weights = self._upcast_and_reordered_attn(
           query, key, value, attention_mask, head_mask)
     else:
-      attn_output, attn_weights, var, sparsity, min_attn_weights = self._attn(
+      attn_output, attn_weights, var, sparsity = self._attn(
           query, key, value, attention_mask, head_mask)
-      self.min_attn_weights = min_attn_weights
 
     attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
     attn_output = self.c_proj(attn_output)
@@ -683,7 +681,7 @@ class GPT2Block(nn.Module):
     else:
       outputs = (hidden_states,) + outputs[1:]
     # hidden_states, present, (attentions, cross_attentions)
-    return outputs, total_var, total_sparsity, self.attn.min_attn_weights
+    return outputs, total_var, total_sparsity
 
 
 class GPT2PreTrainedModel(PreTrainedModel):
@@ -1025,7 +1023,6 @@ class GPT2Model(GPT2PreTrainedModel):
     total_sparsity = 0
     if EARLY_STOP_FLAG:
       total_sparsity = [0 for _ in range(KBIT)]
-    self.min_attn_weights = []
     # rima
 
     output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
@@ -1158,7 +1155,7 @@ class GPT2Model(GPT2PreTrainedModel):
 
           return custom_forward
 
-        outputs, var, sparsity, min_attn = torch.utils.checkpoint.checkpoint(
+        outputs, var, sparsity = torch.utils.checkpoint.checkpoint(
             create_custom_forward(block),
             hidden_states,
             None,
@@ -1167,9 +1164,8 @@ class GPT2Model(GPT2PreTrainedModel):
             encoder_hidden_states,
             encoder_attention_mask,
         )
-        self.min_attn_weights.append(min_attn)
       else:
-        outputs, var, sparsity, min_attn = block(
+        outputs, var, sparsity = block(
             hidden_states,
             layer_past=layer_past,
             attention_mask=attention_mask,
@@ -1179,7 +1175,6 @@ class GPT2Model(GPT2PreTrainedModel):
             use_cache=use_cache,
             output_attentions=output_attentions,
         )
-        self.min_attn_weights.append(min_attn)
 
       hidden_states = outputs[0]
       # amir
@@ -1225,7 +1220,7 @@ class GPT2Model(GPT2PreTrainedModel):
     if not return_dict:
       return tuple(v for v in [
           hidden_states, presents, all_hidden_states, all_self_attentions,
-          all_cross_attentions, total_var, total_sparsity, self.min_attn_weights
+          all_cross_attentions, total_var, total_sparsity
       ] if v is not None)
 
     return BaseModelOutputWithPastAndCrossAttentions(
@@ -1234,7 +1229,7 @@ class GPT2Model(GPT2PreTrainedModel):
         hidden_states=all_hidden_states,
         attentions=all_self_attentions,
         cross_attentions=all_cross_attentions,
-    ), total_var, total_sparsity, self.min_attn_weights
+    ), total_var, total_sparsity
 
 
 @add_start_docstrings(
@@ -1358,7 +1353,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
         """
     return_dict = return_dict if return_dict is not None else self.config.use_return_dict
     # amir
-    transformer_outputs, var, sparsity, min_attn_weights = self.transformer(
+    transformer_outputs, var, sparsity = self.transformer(
         input_ids,
         past_key_values=past_key_values,
         attention_mask=attention_mask,
@@ -1373,7 +1368,6 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
         output_hidden_states=output_hidden_states,
         return_dict=return_dict,
     )
-    # print("Min attention weights: ", min_attn_weights)
     if not EARLY_STOP_FLAG:
       self.sparsity.append(sparsity)
     else:
