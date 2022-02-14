@@ -326,6 +326,7 @@ class GPT2Attention(nn.Module):
     my_actual_mask = torch.where(my_causal_mask,
                                  torch.tensor(0).to(attn_weights.dtype).cuda(),
                                  self.masked_bias.to(attn_weights.dtype))
+    print('actual mask size: ', my_actual_mask.size())
     # Rima
 
     if self.quant:
