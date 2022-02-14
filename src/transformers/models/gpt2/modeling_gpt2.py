@@ -408,7 +408,7 @@ class GPT2Attention(nn.Module):
       for i in range(0, attn_weights.size(0)):
         row = attn_weights[i, :]
         new_row = self.soft_thres_layer(row)
-        print('new row size: ', new_row.size())
+        print("new row size: ", new_row.size())
         new_attention_weights[i, :] = new_row
         var += ((my_actual_mask[i, :, :, :] > -999).sum() * new_row.size(1) *
                 new_row.size(2) - sigmoid(100 * (new_row + 999)).sum()) / (
