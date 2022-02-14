@@ -322,7 +322,8 @@ class GPT2Attention(nn.Module):
     query_length, key_length = query.size(-2), key.size(-2)
     my_causal_mask = self.bias[:, :, key_length -
                                query_length:key_length, :key_length].bool()
-    my_actual_mask = torch.where(my_causal_mask, torch.tensor(0).to(attn_weights.dtype),
+    my_actual_mask = torch.where(my_causal_mask,
+                                 torch.tensor(0).to(attn_weights.dtype).cuda(),
                                  self.masked_bias.to(attn_weights.dtype))
     # Rima
 
