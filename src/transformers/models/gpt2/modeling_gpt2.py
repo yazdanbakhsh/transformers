@@ -307,6 +307,7 @@ class GPT2Attention(nn.Module):
       attn_weights = torch.where(causal_mask, attn_weights,
                                  self.masked_bias.to(attn_weights.dtype))
     if attention_mask is not None:
+      assert False, "Oh no! Not implemented!"
       # amir
       attention_mask[attention_mask == -10000] = -1000
       # rima
