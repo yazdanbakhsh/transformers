@@ -1999,7 +1999,8 @@ class Trainer:
         else:
             loss.backward()
         for p in model.parameters():
-          print(p.grad.view(-1))
+          if p.grad:
+            print(p.grad.view(-1))
         return loss.detach()
 
     def compute_loss(self, model, inputs, return_outputs=False):
