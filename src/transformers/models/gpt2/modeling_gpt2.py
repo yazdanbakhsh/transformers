@@ -324,9 +324,11 @@ class GPT2Attention(nn.Module):
     my_causal_mask = self.bias[:, :, key_length -
                                query_length:key_length, :key_length].bool()
     # Actual Mask: [1, 1, 1024, 1024]
-    my_actual_mask = torch.where(my_causal_mask,
-                                 torch.tensor(0).to(attn_weights.dtype).cuda(),
+    my_actual_mask = torch.where(my_causal_mask, attn_weights,
                                  self.masked_bias.to(attn_weights.dtype))
+    my_actual_mask[my_actual_mask != self.masked_bias] = torch.tensor(0.0).to(
+        attn_weights.dtype).cuda()
+    print("size:::::", my_actual_mask.size())
     # Rima
 
     if self.quant:
@@ -408,7 +410,6 @@ class GPT2Attention(nn.Module):
       for i in range(0, attn_weights.size(0)):
         row = attn_weights[i, :]
         new_row = self.soft_thres_layer(row)
-        print("new row size: ", new_row.size())
         new_attention_weights[i, :] = new_row
         var += ((my_actual_mask[i, :, :, :] > -999).sum() * new_row.size(1) *
                 new_row.size(2) - sigmoid(100 * (new_row + 999)).sum()) / (
@@ -425,7 +426,8 @@ class GPT2Attention(nn.Module):
 
     attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
-    # Downcast (if necessary) back to V's dtype (if in mixed-precision) -- No-Op otherwise
+    # Downcast (if necessary) back to V's dtype (if in mixed-precision)
+    # -- No-Op otherwise
     attn_weights = attn_weights.type(value.dtype)
     attn_weights = self.attn_dropout(attn_weights)
 
