@@ -320,6 +320,7 @@ class GPT2Attention(nn.Module):
 
     # print("attention max: ", torch.max(attn_weights))
     # print("attention min: ", torch.min(attn_weights))
+    # Zheng MASK [B, 1, 1, 1024]
     # amir
     var = 0
     sigmoid = nn.Sigmoid()
@@ -423,7 +424,8 @@ class GPT2Attention(nn.Module):
                 (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() *
                 new_row.size(0)) * 100
       non_sparsity = (new_attention_weights > -1e4 + 1).sum() / (
-          (my_actual_mask > -1e4 + 1).sum() * new_row.size(0))
+          (my_actual_mask > -1e4 + 1).sum() * new_attention_weights.size(0) *
+          new_attention_weights.size(1))
       sparsity = (1 - non_sparsity)
       attn_weights = new_attention_weights
       if self.scale_attn_weights:
