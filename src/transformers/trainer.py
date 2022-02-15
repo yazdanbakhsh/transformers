@@ -1438,6 +1438,9 @@ class Trainer:
                             model.clip_grad_norm_(args.max_grad_norm)
                         else:
                             # Revert to normal clipping otherwise, handling Apex or full precision
+                            for p in model.parameters():
+                              if p.grad:
+                                print(p.grad.view(-1))
                             nn.utils.clip_grad_norm_(
                                 amp.master_params(self.optimizer) if self.use_apex else model.parameters(),
                                 args.max_grad_norm,
