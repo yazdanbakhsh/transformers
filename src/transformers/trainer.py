@@ -2291,7 +2291,11 @@ class Trainer:
         # amir
         all_alpha = [param for name, param in self.model.named_parameters() if 'alpha' in name]
         if len(all_alpha) > 0:
+          print(f'ISCA: Min Threshold: {min(all_alpha)')
+          print(f'ISCA: Max Threshold: {max(all_alpha)')
           print(f'ISCA: Average Threshold: {sum(all_alpha)/len(all_alpha)}')
+        print(f'ISCA: Max Sparsity: {max(self.model.sparsity)}')
+        print(f'ISCA: Min Sparsity: {min(self.model.sparsity)}')
         print(f'ISCA: Average Sparsity: {100 * sum(self.model.sparsity) / len(self.model.sparsity)}%')
         # rima
 
