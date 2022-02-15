@@ -329,6 +329,7 @@ class GPT2Attention(nn.Module):
                                  self.masked_bias.to(attn_weights.dtype))
     my_actual_mask[my_actual_mask != self.masked_bias] = torch.tensor(0.0).to(
         attn_weights.dtype).cuda()
+    print("Size: ", my_actual_mask.size())
     # my_actual_mask [B, 1, 1, 1024]
     # Rima
 
