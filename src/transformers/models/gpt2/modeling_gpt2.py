@@ -1426,7 +1426,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
       return ((loss,) + output) if loss is not None else output
 
     return CausalLMOutputWithCrossAttentions(
-        loss=loss + 1e-4 * (-var) if var else loss,
+        loss=loss + 1e-5 * (-var) if var else loss,
         logits=lm_logits,
         past_key_values=transformer_outputs.past_key_values,
         hidden_states=transformer_outputs.hidden_states,
