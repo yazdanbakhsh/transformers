@@ -193,7 +193,8 @@ class GPT2Attention(nn.Module):
     if self.prun:
       # ALPHA: we need to tune alpha.
       # Change C to the same value as casual mask.
-      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1e4, alpha=config.threshold)
+      self.soft_thres_layer = soft_thres_layer(
+          s=10.0, c=-1e4, alpha=config.threshold)
     self.quant = QUANT_FLAG
     self.early_stop = EARLY_STOP_FLAG
     self.kbit = KBIT
