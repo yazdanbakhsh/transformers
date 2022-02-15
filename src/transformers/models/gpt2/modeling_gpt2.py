@@ -414,6 +414,7 @@ class GPT2Attention(nn.Module):
       # Iterate over each batch.
       for i in range(0, attn_weights.size(0)):
         row = attn_weights[i, :]
+        print("Row Size: ", row.size())
         new_row = self.soft_thres_layer(row)
         print("New Row Size: ", new_row.size())
         new_attention_weights[i, :] = new_row
