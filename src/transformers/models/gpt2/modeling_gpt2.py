@@ -329,8 +329,8 @@ class GPT2Attention(nn.Module):
                                  self.masked_bias.to(attn_weights.dtype))
     my_actual_mask[my_actual_mask != self.masked_bias] = torch.tensor(0.0).to(
         attn_weights.dtype).cuda()
-    print("Size: ", my_actual_mask.size())
-    # my_actual_mask [B, 1, 1, 1024]
+    # my_actual_mask [B, 20, 1024, 1024]
+    # Zheng: [B, 1, 1, 1024]
     # Rima
 
     if self.quant:
@@ -414,13 +414,11 @@ class GPT2Attention(nn.Module):
         new_row = self.soft_thres_layer(row)
         new_attention_weights[i, :] = new_row
         var += (
-            (my_actual_mask[i, :, :, :] > -1e4 + 1).sum() * new_row.size(1) *
-            new_row.size(2) - sigmoid(100 * (new_row + 1e4 - 1)).sum()) / (
+            (my_actual_mask[i, :, :, :] > -1e4 + 1).sum() - sigmoid(100 * (new_row + 1e4 - 1)).sum()) / (
                 (my_actual_mask[i, :, :, :] > -1e4 + 1).sum() *
                 new_row.size(1) * new_row.size(2)) * 100
       non_sparsity = (new_attention_weights > -1e4 + 1).sum() / (
-          (my_actual_mask > -1e4 + 1).sum() * new_attention_weights.size(1) *
-          new_attention_weights.size(2))
+          (my_actual_mask > -1e4 + 1).sum())
       sparsity = (1 - non_sparsity)
       attn_weights = new_attention_weights
       if self.scale_attn_weights:
