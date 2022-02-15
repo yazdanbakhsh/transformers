@@ -316,6 +316,8 @@ class GPT2Attention(nn.Module):
       # Apply the attention mask: [Batch, 1, 1, 1024]
       attn_weights = attn_weights + attention_mask
 
+    print("attention max: ", torch.max(attn_weights))
+    print("attention min: ", torch.min(attn_weights))
     # amir
     var = 0
     sigmoid = nn.Sigmoid()
@@ -327,8 +329,6 @@ class GPT2Attention(nn.Module):
     # Actual Mask: [1, 1, 1024, 1024]
     my_actual_mask = torch.where(my_causal_mask, attn_weights,
                                  self.masked_bias.to(attn_weights.dtype))
-    my_actual_mask[my_actual_mask != self.masked_bias] = torch.tensor(0.0).to(
-        attn_weights.dtype).cuda()
     # my_actual_mask [B, 20, 1024, 1024]
     # Zheng: [B, 1, 1, 1024]
     # Rima
