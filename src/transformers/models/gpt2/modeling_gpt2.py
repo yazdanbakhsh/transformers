@@ -423,7 +423,7 @@ class GPT2Attention(nn.Module):
       if self.scale_attn_weights:
         attn_weights = attn_weights / (value.size(-1)**0.5)
     # rime
-
+    print("Var: ", var)
     attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
     # Downcast (if necessary) back to V's dtype (if in mixed-precision)
