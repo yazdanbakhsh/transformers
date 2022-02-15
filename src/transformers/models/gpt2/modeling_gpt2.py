@@ -316,8 +316,8 @@ class GPT2Attention(nn.Module):
       # Apply the attention mask: [Batch, 1, 1, 1024]
       attn_weights = attn_weights + attention_mask
 
-    print("attention max: ", torch.max(attn_weights))
-    print("attention min: ", torch.min(attn_weights))
+    # print("attention max: ", torch.max(attn_weights))
+    # print("attention min: ", torch.min(attn_weights))
     # amir
     var = 0
     sigmoid = nn.Sigmoid()
