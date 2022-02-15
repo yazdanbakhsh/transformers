@@ -413,10 +413,9 @@ class GPT2Attention(nn.Module):
         row = attn_weights[i, :]
         new_row = self.soft_thres_layer(row)
         new_attention_weights[i, :] = new_row
-        var += (
-            (my_actual_mask[i, :, :, :] > -1e4 + 1).sum() - sigmoid(100 * (new_row + 1e4 - 1)).sum()) / (
-                (my_actual_mask[i, :, :, :] > -1e4 + 1).sum() *
-                new_row.size(1) * new_row.size(2)) * 100
+        var += ((my_actual_mask[i, :, :, :] > -1e4 + 1).sum() -
+                sigmoid(100 * (new_row + 1e4 - 1)).sum()) / (
+                    (my_actual_mask[i, :, :, :] > -1e4 + 1).sum()) * 100
       non_sparsity = (new_attention_weights > -1e4 + 1).sum() / (
           (my_actual_mask > -1e4 + 1).sum())
       sparsity = (1 - non_sparsity)
