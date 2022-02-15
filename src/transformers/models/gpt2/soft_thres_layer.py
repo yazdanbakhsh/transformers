@@ -7,9 +7,11 @@ class soft_thres_layer(nn.Module):
 
   def __init__(self, s, c, alpha=0.75):
     super().__init__()
+    self.register_buffer("s", torch.tensor(s))
+    self.register_buffer("c", torch.tensor(c))
     self.alpha = nn.Parameter(torch.tensor([alpha]))
-    self.s = nn.Parameter(torch.tensor(s), requires_grad=False)
-    self.c = nn.Parameter(torch.tensor(c), requires_grad=False)
+    # self.s = nn.Parameter(torch.tensor(s), requires_grad=False)
+    # self.c = nn.Parameter(torch.tensor(c), requires_grad=False)
 
   def forward(self, x):
     return soft_thres_func.apply(x, self.alpha, self.s, self.c)
