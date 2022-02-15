@@ -332,6 +332,7 @@ class GPT2Attention(nn.Module):
     my_actual_mask = torch.where(my_causal_mask,
                                  torch.tensor(0.).to(attn_weights.dtype).cuda(),
                                  self.masked_bias.to(attn_weights.dtype))
+    print("Actual Mask Size: ", my_actual_mask.size())
     # my_actual_mask [1, 1, 1024, 1024]
     # Rima
 
@@ -414,6 +415,7 @@ class GPT2Attention(nn.Module):
       for i in range(0, attn_weights.size(0)):
         row = attn_weights[i, :]
         new_row = self.soft_thres_layer(row)
+        print("New Row Size: ", new_row.size())
         new_attention_weights[i, :] = new_row
         var += (
             (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * new_row.size(1) -
