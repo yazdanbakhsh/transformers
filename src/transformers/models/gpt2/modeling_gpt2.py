@@ -413,18 +413,17 @@ class GPT2Attention(nn.Module):
       new_attention_weights = torch.zeros(attn_weights.size()).cuda()
       # Iterate over each batch.
       for i in range(0, attn_weights.size(0)):
+        # Row Size: (20, 1024, 1024)
         row = attn_weights[i, :]
-        print("Row Size: ", row.size())
         new_row = self.soft_thres_layer(row)
-        print("New Row Size: ", new_row.size())
         new_attention_weights[i, :] = new_row
         var += (
-            (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * new_row.size(1) -
+            (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * new_row.size(0) -
             sigmoid(100 * (new_row + 1e4 - 1)).sum()) / (
                 (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() *
-                new_row.size(1)) * 100
+                new_row.size(0)) * 100
       non_sparsity = (new_attention_weights > -1e4 + 1).sum() / (
-          (my_actual_mask > -1e4 + 1).sum() * new_row.size(1))
+          (my_actual_mask > -1e4 + 1).sum() * new_row.size(0))
       sparsity = (1 - non_sparsity)
       attn_weights = new_attention_weights
       if self.scale_attn_weights:
