@@ -192,7 +192,7 @@ class GPT2Attention(nn.Module):
     if self.prun:
       # ALPHA: we need to tune alpha.
       # Change C to the same value as casual mask.
-      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1e4, alpha=-20.0)
+      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1e4, alpha=-21.0)
     self.quant = QUANT_FLAG
     self.early_stop = EARLY_STOP_FLAG
     self.kbit = KBIT
@@ -423,8 +423,8 @@ class GPT2Attention(nn.Module):
       if self.scale_attn_weights:
         attn_weights = attn_weights / (value.size(-1)**0.5)
     # rime
-    print("Var: ", var)
-    print("Sparsity: ", sparsity)
+    # print("Var: ", var)
+    # print("Sparsity: ", sparsity)
     attn_weights = nn.functional.softmax(attn_weights, dim=-1)
 
     # Downcast (if necessary) back to V's dtype (if in mixed-precision)
