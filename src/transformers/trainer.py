@@ -1598,6 +1598,9 @@ class Trainer:
         metrics = None
         if self.control.should_evaluate:
             metrics = self.evaluate(ignore_keys=ignore_keys_for_eval)
+            print("Amir----------")
+            print(metrics)
+            print("Rima----------")
             self._report_to_hp_search(trial, epoch, metrics)
 
         if self.control.should_save:
