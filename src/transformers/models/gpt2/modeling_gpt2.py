@@ -37,6 +37,7 @@ EARLY_STOP_FLAG = False
 QUANT_FLAG = False
 PRUN_FLAG = True
 KBIT = 12
+_ALPHA = -22.0
 # rima
 
 if version.parse(torch.__version__) >= version.parse("1.6"):
@@ -192,7 +193,7 @@ class GPT2Attention(nn.Module):
     if self.prun:
       # ALPHA: we need to tune alpha.
       # Change C to the same value as casual mask.
-      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1e4, alpha=20.0)
+      self.soft_thres_layer = soft_thres_layer(s=10.0, c=-1e4, alpha=_ALPHA)
     self.quant = QUANT_FLAG
     self.early_stop = EARLY_STOP_FLAG
     self.kbit = KBIT
@@ -327,10 +328,9 @@ class GPT2Attention(nn.Module):
     my_causal_mask = self.bias[:, :, key_length -
                                query_length:key_length, :key_length].bool()
     # Actual Mask: [1, 1, 1024, 1024]
-    my_actual_mask = torch.where(my_causal_mask, attn_weights,
+    my_actual_mask = torch.where(my_causal_mask, torch.tensor(0).cuda(),
                                  self.masked_bias.to(attn_weights.dtype))
-    # my_actual_mask [B, 20, 1024, 1024]
-    # Zheng: [B, 1, 1, 1024]
+    # my_actual_mask [1, 1, 1024, 1024]
     # Rima
 
     if self.quant:
@@ -413,11 +413,13 @@ class GPT2Attention(nn.Module):
         row = attn_weights[i, :]
         new_row = self.soft_thres_layer(row)
         new_attention_weights[i, :] = new_row
-        var += ((my_actual_mask[i, :, :, :] > -1e4 + 1).sum() -
-                sigmoid(100 * (new_row + 1e4 - 1)).sum()) / (
-                    (my_actual_mask[i, :, :, :] > -1e4 + 1).sum()) * 100
+        var += (
+            (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * new_row.size(1) -
+            sigmoid(100 * (new_row + 1e4 - 1)).sum()) / (
+                (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() *
+                new_row.size(1)) * 100
       non_sparsity = (new_attention_weights > -1e4 + 1).sum() / (
-          (my_actual_mask > -1e4 + 1).sum())
+          (my_actual_mask > -1e4 + 1).sum() * new_row.size(1))
       sparsity = (1 - non_sparsity)
       attn_weights = new_attention_weights
       if self.scale_attn_weights:
