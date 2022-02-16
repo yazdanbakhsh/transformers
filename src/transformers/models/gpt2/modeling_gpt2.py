@@ -381,7 +381,7 @@ class GPT2Attention(nn.Module):
         k_quant = self.quantize_by_bit(
             k_clamp, bit_num=bit_num, alpha_key=mykey, ori_bit_num=self.kbit)
         k_clamp -= k_quant
-        new_attention_weights += torch.mathmul(query, k_quant.transpose(-2, -1))
+        new_attention_weights += torch.matmul(query, k_quant.transpose(-2, -1))
         print("ISCAREMOVE: new_attention_weights Size: ",
               new_attention_weights.size())
         print("ISCAREMOVE: my_actual_mask Size: ",
