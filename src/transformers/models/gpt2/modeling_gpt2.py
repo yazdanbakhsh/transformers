@@ -37,7 +37,6 @@ EARLY_STOP_FLAG = False
 QUANT_FLAG = False
 PRUN_FLAG = True
 KBIT = 12
-_ALPHA = -22.0
 # rima
 
 if version.parse(torch.__version__) >= version.parse("1.6"):
@@ -196,7 +195,7 @@ class GPT2Attention(nn.Module):
       self.soft_thres_layer = soft_thres_layer(
           s=10.0, c=-1e4, alpha=config.threshold)
     self.quant = QUANT_FLAG
-    self.early_stop = EARLY_STOP_FLAG
+    self.early_stop = config.early_stopping
     self.kbit = KBIT
     self.six_sigma = dict()
     # rima
@@ -356,7 +355,6 @@ class GPT2Attention(nn.Module):
         if new_attention_weights is not None:
           new_attention_weights = new_attention_weights + attention_mask
     if self.prun and self.early_stop:
-      assert False, "Oh No! We are not running this! -- No Early Stop!"
       self.sparsity = [0 for _ in range(self.kbit)]
       same_sign = torch.sign(key) * torch.sign(query)
       same_sign = torch.where(same_sign > 0, 1, 0)
@@ -377,34 +375,39 @@ class GPT2Attention(nn.Module):
         print("dict key: ", mykey, "Added Alpha: ", alpha)
       else:
         alpha = self.six_sigma.get(mykey)
+
       k_clamp = key.clamp(-alpha, alpha)
       for bit_num in range(1, self.kbit + 1):
         k_quant = self.quantize_by_bit(
             k_clamp, bit_num=bit_num, alpha_key=mykey, ori_bit_num=self.kbit)
         k_clamp -= k_quant
         new_attention_weights += torch.mathmul(query, k_quant.transpose(-2, -1))
+
         for i in range(0, new_attention_weights.size(0)):
           for j in range(0, new_attention_weights.size(1)):
             # Kmax * Qsum
+            # Kmax*Qsum
             bound = bound_bit[bit_num - 1] * (self.six_sigma[mykey] /
                                               bound_bit[0]) * q_abs_sum[i, j, :]
             bound = bound.unsqueeze(-1)
             bound = bound.repeat(1, new_attention_weights.size(3))
             array = new_attention_weights[i, j, :, :]
+
             new_array = self.soft_thres_layer(array + bound)
             # Index of small (pruned out) values.
-            out_ind = torch.where(new_array < -999)
-            array[out_ind] = -1000
+            out_ind = torch.where(new_array < -1e4 + 1)
+            array[out_ind] = -1e4
             new_attention_weights[i, j, :, :] = array
+          # row: [20, 1024, 1024]
+          # my_actual_mask: [1, 1, 1024, 1024]
           row = new_attention_weights[i]
-          non_sparsity = (row > -999).sum() / (
-              (attention_mask[i, :, :, :] > -999).sum() * row.size(0) *
-              row.size(1))
+          non_sparsity = (row > -1e4 + 1).sum() / (
+              (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * row.size(0))
           sparsity = (1 - non_sparsity)
-          var += ((attention_mask[i, :, :, :] > -999).sum() * row.size(1) *
-                  row.size(2) - sigmoid(100 * (row + 999)).sum()) / (
-                      (attention_mask[i, :, :, :] > -999).sum() * row.size(1) *
-                      row.size(2)) * 100
+          var += ((my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * row.size(0) -
+                  sigmoid(100 * (row + 1e4 - 1)).sum()) / (
+                      (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() *
+                      row.size(0)) * 100
           self.sparsity[bit_num - 1] += sparsity.item()
       self.sparsity = [i / new_attention_weights.size(0) for i in self.sparsity]
       attn_weights = new_attention_weights
@@ -1052,7 +1055,7 @@ class GPT2Model(GPT2PreTrainedModel):
     # amir
     total_var = 0
     total_sparsity = 0
-    if EARLY_STOP_FLAG:
+    if self.config.early_stopping:
       total_sparsity = [0 for _ in range(KBIT)]
     # rima
 
@@ -1210,7 +1213,7 @@ class GPT2Model(GPT2PreTrainedModel):
       hidden_states = outputs[0]
       # amir
       total_var += var
-      if not EARLY_STOP_FLAG:
+      if not self.config.early_stopping:
         total_sparsity += sparsity
       else:
         for kb in range(KBIT):
@@ -1233,7 +1236,7 @@ class GPT2Model(GPT2PreTrainedModel):
             hidden_states = hidden_states.to("cuda:" + str(k + 1))
 
     # amir
-    if EARLY_STOP_FLAG:
+    if self.config.early_stopping:
       total_sparsity = [i / len(self.h) for i in total_sparsity]
     # rima
     hidden_states = self.ln_f(hidden_states)
@@ -1244,7 +1247,7 @@ class GPT2Model(GPT2PreTrainedModel):
       all_hidden_states = all_hidden_states + (hidden_states,)
 
     # amir
-    if not EARLY_STOP_FLAG:
+    if not self.config.early_stopping:
       total_sparsity = total_sparsity / len(self.h)
     # rima
 
@@ -1288,7 +1291,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
     self.post_init()
 
     # amir
-    if not EARLY_STOP_FLAG:
+    if not self.config.early_stopping:
       self.sparsity = []
     else:
       self.sparsity = [[] for _ in range(KBIT)]
@@ -1399,7 +1402,7 @@ class GPT2LMHeadModel(GPT2PreTrainedModel):
         output_hidden_states=output_hidden_states,
         return_dict=return_dict,
     )
-    if not EARLY_STOP_FLAG:
+    if not self.config.early_stopping:
       self.sparsity.append(sparsity)
     else:
       for i in range(KBIT):

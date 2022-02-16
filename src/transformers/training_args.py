@@ -140,6 +140,8 @@ class TrainingArguments:
             requires more memory).
         threshold (`float`, *optional*, defaults to -15.0):
             The initial alpha for learned pruning.
+        early_stopping (`bool`, *optional*, defaults to False):
+            If True, it calcualtes the CDFs for early stopping.
         learning_rate (`float`, *optional*, defaults to 5e-5):
             The initial learning rate for [`AdamW`] optimizer.
         weight_decay (`float`, *optional*, defaults to 0):
@@ -472,6 +474,7 @@ class TrainingArguments:
 
     # Amir
     threshold: float = field(default=-15.0, metadata={"help": "Threshold for pruning."})
+    early_stopping: bool = field(default=False, metadata={"help": "Enable early stopping."})
     # Rima
 
     learning_rate: float = field(default=5e-5, metadata={"help": "The initial learning rate for AdamW."})

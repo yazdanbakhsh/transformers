@@ -316,7 +316,8 @@ def main():
         "cache_dir": model_args.cache_dir,
         "revision": model_args.model_revision,
         "use_auth_token": True if model_args.use_auth_token else None,
-        "threshold": training_args.threshold
+        "threshold": training_args.threshold,
+        "early_stopping": training_args.early_stopping
     }
     if model_args.config_name:
         config = AutoConfig.from_pretrained(model_args.config_name, **config_kwargs)

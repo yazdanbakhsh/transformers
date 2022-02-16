@@ -297,6 +297,7 @@ class PretrainedConfig(PushToHubMixin):
         self.remove_invalid_values = kwargs.pop("remove_invalid_values", False)
         #
         self.threshold = kwargs.pop("threshold", False)
+        self.early_stopping = kwargs.pop("early_stopping", False)
         #
 
 
