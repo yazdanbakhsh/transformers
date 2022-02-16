@@ -372,7 +372,7 @@ class CausalLMOutputWithPast(ModelOutput):
 
 
 @dataclass
-class CausalLMOutputWithCrossAttentionsthreshold(ModelOutput):
+class CausalLMOutputWithCrossAttentions(ModelOutput):
     """
     Base class for causal language model (or autoregressive) outputs.
 
