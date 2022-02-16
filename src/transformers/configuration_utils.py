@@ -298,6 +298,7 @@ class PretrainedConfig(PushToHubMixin):
         #
         self.threshold = kwargs.pop("threshold", False)
         self.early_stopping = kwargs.pop("early_stopping", False)
+        self.quant = kwargs.pop("quant", False)
         #
 
 

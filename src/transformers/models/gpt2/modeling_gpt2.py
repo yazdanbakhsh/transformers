@@ -194,8 +194,8 @@ class GPT2Attention(nn.Module):
       # Change C to the same value as casual mask.
       self.soft_thres_layer = soft_thres_layer(
           s=10.0, c=-1e4, alpha=config.threshold)
-    self.quant = QUANT_FLAG
     self.early_stop = config.early_stopping
+    self.quant = config.quant
     self.kbit = KBIT
     self.six_sigma = dict()
     # rima

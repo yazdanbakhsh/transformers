@@ -317,7 +317,8 @@ def main():
         "revision": model_args.model_revision,
         "use_auth_token": True if model_args.use_auth_token else None,
         "threshold": training_args.threshold,
-        "early_stopping": training_args.early_stopping
+        "early_stopping": training_args.early_stopping,
+        "quant": training_args.quant
     }
     if model_args.config_name:
         config = AutoConfig.from_pretrained(model_args.config_name, **config_kwargs)
