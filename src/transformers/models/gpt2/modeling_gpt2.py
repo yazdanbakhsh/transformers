@@ -228,12 +228,9 @@ class GPT2Attention(nn.Module):
     if self.six_sigma.get(alpha_key) is None:
       std, _ = torch.std_mean(w)
 
-      if alpha_key == "k":
+      if alpha_key == "k" or alpha_key == "q":
         alpha = 6.0 * std
-        print("Number of bit for k: ", bit_num)
-      if alpha_key == "q":
-        alpha = 6.0 * std
-        print("number of bit for q", bit_num)
+        print(f"Number of bit for {alpha_key}: ", bit_num)
       if alpha_key == "scores":
         alpha = 4 * std
         bit_num = 24
@@ -252,6 +249,7 @@ class GPT2Attention(nn.Module):
       alpha = self.six_sigma.get(alpha_key)
     w = torch.div(w, alpha)
     w = w.clamp(min=-1, max=1)
+    # Quantization, (bit_num - 1) for the sign bit.
     w = (w * (2**(bit_num - 1) - 1)).round() / (2**(bit_num - 1) - 1)
     return w * alpha
   # rima
@@ -359,7 +357,9 @@ class GPT2Attention(nn.Module):
       same_sign = torch.sign(key) * torch.sign(query)
       same_sign = torch.where(same_sign > 0, 1, 0)
       q_abs_sum = torch.sum(torch.abs(query) * same_sign, 3)
-      bound_bit = 0
+      print("ISCAREMOVE: query Size: ", query.size())
+      print("ISCAREMOVE: q_abs_sum Size: ", q_abs_sum.size())
+      bound_sum = 0
       bound_bit = torch.zeros(self.kbit)
       # Following lines pre-calculate the remaining maximum K value
       # after completeing bit_num-th bit calculation
@@ -382,6 +382,10 @@ class GPT2Attention(nn.Module):
             k_clamp, bit_num=bit_num, alpha_key=mykey, ori_bit_num=self.kbit)
         k_clamp -= k_quant
         new_attention_weights += torch.mathmul(query, k_quant.transpose(-2, -1))
+        print("ISCAREMOVE: new_attention_weights Size: ",
+              new_attention_weights.size())
+        print("ISCAREMOVE: my_actual_mask Size: ",
+              my_actual_mask.size())
 
         for i in range(0, new_attention_weights.size(0)):
           for j in range(0, new_attention_weights.size(1)):
