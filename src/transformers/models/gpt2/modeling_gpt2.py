@@ -335,7 +335,6 @@ class GPT2Attention(nn.Module):
     # Rima
 
     if self.quant:
-      assert False, "Oh No! We are not runnin this -- no quant"
       mykey = "q"
       newq = self.quantize(query, bit_num=self.kbit, alpha_key=mykey)
       if self.early_stop:
