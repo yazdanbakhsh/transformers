@@ -393,7 +393,6 @@ class GPT2Attention(nn.Module):
         for i in range(0, new_attention_weights.size(0)):
           for j in range(0, new_attention_weights.size(1)):
             # Kmax * Qsum
-            # Kmax*Qsum
             bound = bound_bit[bit_num - 1] * (self.six_sigma[mykey] /
                                               bound_bit[0]) * q_abs_sum[i, j, :]
             bound = bound.unsqueeze(-1)
@@ -409,6 +408,8 @@ class GPT2Attention(nn.Module):
           # row: [20, 1024, 1024]
           # my_actual_mask: [1, 1, 1024, 1024]
           row = new_attention_weights[i]
+          print(f"ROW SIZE: {row.size()}")
+          print(f"Actual MASK SIZE: {my_actual_mask.size()}")
           non_sparsity = (row > -1e4 + 1).sum() / (
               (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * row.size(0))
           sparsity = (1 - non_sparsity)
