@@ -348,6 +348,7 @@ class GPT2Attention(nn.Module):
         attn_weights = torch.matmul(newq, newkey.transpose(-1, -2)) / (
             value.size(-1)**0.5)
       if attention_mask is not None:
+        assert torch.count_nonzero(attention_mask) == 0, "All are zero!"
         attention_mask[attention_mask == -10000] = -1000
         attn_weights = attn_weights + attention_mask
         if new_attention_weights is not None:
@@ -409,8 +410,8 @@ class GPT2Attention(nn.Module):
           # row: [20, 1024, 1024]
           # my_actual_mask: [1, 1, 1024, 1024]
           row = new_attention_weights[i]
-          print(f"ROW SIZE: {row.size()}")
-          print(f"Actual MASK SIZE: {my_actual_mask.size()}")
+          # print(f"ROW SIZE: {row.size()}")
+          # print(f"Actual MASK SIZE: {my_actual_mask.size()}")
           non_sparsity = (row > -1e4 + 1).sum() / (
               (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * row.size(0))
           sparsity = (1 - non_sparsity)
