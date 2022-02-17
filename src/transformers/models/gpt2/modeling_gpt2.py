@@ -356,8 +356,10 @@ class GPT2Attention(nn.Module):
       same_sign = torch.sign(key) * torch.sign(query)
       same_sign = torch.where(same_sign > 0, 1, 0)
       q_abs_sum = torch.sum(torch.abs(query) * same_sign, 3)
-      print("ISCAREMOVE: query Size: ", query.size())
-      print("ISCAREMOVE: q_abs_sum Size: ", q_abs_sum.size())
+      # query size: [8, 20, 1024, 64]
+      # print("ISCAREMOVE: query Size: ", query.size())
+      # q_abs_sum size: [8, 20, 1024]
+      # print("ISCAREMOVE: q_abs_sum Size: ", q_abs_sum.size())
       bound_sum = 0
       bound_bit = torch.zeros(self.kbit)
       # Following lines pre-calculate the remaining maximum K value
@@ -380,11 +382,13 @@ class GPT2Attention(nn.Module):
         k_quant = self.quantize_by_bit(
             k_clamp, bit_num=bit_num, alpha_key=mykey, ori_bit_num=self.kbit)
         k_clamp -= k_quant
+        # new_attention_weights: [8, 20, 1024, 1024]
+        # my_actual_mask: [1, 1, 1024, 1024]
         new_attention_weights += torch.matmul(query, k_quant.transpose(-2, -1))
-        print("ISCAREMOVE: new_attention_weights Size: ",
-              new_attention_weights.size())
-        print("ISCAREMOVE: my_actual_mask Size: ",
-              my_actual_mask.size())
+        # print("ISCAREMOVE: new_attention_weights Size: ",
+        #       new_attention_weights.size())
+        # print("ISCAREMOVE: my_actual_mask Size: ",
+        #       my_actual_mask.size())
 
         for i in range(0, new_attention_weights.size(0)):
           for j in range(0, new_attention_weights.size(1)):
@@ -395,7 +399,8 @@ class GPT2Attention(nn.Module):
             bound = bound.unsqueeze(-1)
             bound = bound.repeat(1, new_attention_weights.size(3))
             array = new_attention_weights[i, j, :, :]
-            print("ISCAREMOVE: array Size: ", array.size())
+            # array size: [1024, 1024]
+            # print("ISCAREMOVE: array Size: ", array.size())
             new_array = self.soft_thres_layer(array + bound)
             # Index of small (pruned out) values.
             out_ind = torch.where(new_array < -1e4 + 1)
