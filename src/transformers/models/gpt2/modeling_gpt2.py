@@ -395,7 +395,7 @@ class GPT2Attention(nn.Module):
             bound = bound.unsqueeze(-1)
             bound = bound.repeat(1, new_attention_weights.size(3))
             array = new_attention_weights[i, j, :, :]
-
+            print("ISCAREMOVE: array Size: ", array.size())
             new_array = self.soft_thres_layer(array + bound)
             # Index of small (pruned out) values.
             out_ind = torch.where(new_array < -1e4 + 1)
@@ -454,7 +454,6 @@ class GPT2Attention(nn.Module):
     if self.prun and not self.early_stop:
       return attn_output, attn_weights, var, sparsity
     elif self.prun and self.early_stop:
-      assert False, "Oh No! We are not running this! -- No Early Stop!"
       return attn_output, attn_weights, var, self.sparsity
     else:
       return attn_output, attn_weights, 0, 0
