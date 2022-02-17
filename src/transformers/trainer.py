@@ -2437,6 +2437,7 @@ class Trainer:
     print("EVAAAAL")
     # Main evaluation loop
     for step, inputs in enumerate(dataloader):
+      print(f"step {step}")
       # Update the observed num examples
       observed_batch_size = find_batch_size(inputs)
       # Amir
