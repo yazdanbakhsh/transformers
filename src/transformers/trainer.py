@@ -2434,6 +2434,7 @@ class Trainer:
     # Will be useful when we have an iterable dataset so don't know its length.
 
     observed_num_examples = 0
+    print("EVAAAAL")
     # Main evaluation loop
     for step, inputs in enumerate(dataloader):
       # Update the observed num examples
