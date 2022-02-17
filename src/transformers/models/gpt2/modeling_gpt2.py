@@ -387,6 +387,13 @@ class GPT2Attention(nn.Module):
         # new_attention_weights: [8, 20, 1024, 1024]
         # my_actual_mask: [1, 1, 1024, 1024]
         new_attention_weights += torch.matmul(query, k_quant.transpose(-2, -1))
+        if not self.is_cross_attention:
+          query_length, key_length = query.size(-2), k_quant.size(-2)
+          causal_mask = self.bias[:, :, key_length -
+                                  query_length:key_length, :key_length].bool()
+          new_attention_weights = torch.where(
+              causal_mask, new_attention_weights,
+              self.masked_bias.to(new_attention_weights.dtype))
         # print("ISCAREMOVE: new_attention_weights Size: ",
         #       new_attention_weights.size())
         # print("ISCAREMOVE: my_actual_mask Size: ",
