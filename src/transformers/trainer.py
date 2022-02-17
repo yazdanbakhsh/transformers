@@ -2445,7 +2445,7 @@ class Trainer:
           print(f"epoch {step} model sparsity is {sparsity}")
         else:
           print(
-              f"epoch {step} model sparsity is {sum(model.sparsity/len(model.sparsity)}"
+              f"epoch {step} model sparsity is {sum(model.sparsity)/len(model.sparsity)}"
           )
       # Rima
       if observed_batch_size is not None:
