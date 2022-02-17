@@ -425,7 +425,7 @@ class GPT2Attention(nn.Module):
           print('non sparsity: ', sparsity)
           print('row size: ', row.size())
           print('my_actual_mask size: ', my_actual_mask[0, :, :, :].size())
-          assert sparsity > 0, "Sparsity can not be negative!"
+          assert sparsity >= 0, "Sparsity can not be negative!"
           var += ((my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * row.size(0) -
                   sigmoid(100 * (row + 1e4 - 1)).sum()) / (
                       (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() *
