@@ -2440,7 +2440,7 @@ class Trainer:
       observed_batch_size = find_batch_size(inputs)
       # Amir
       if step % 20 == 1:
-        if model.early_stop:
+        if model.config.early_stopping:
           sparsity = [sum(i) / len(i) for i in model.sparsity]
           print(f"epoch {step} model sparsity is {sparsity}")
         else:
