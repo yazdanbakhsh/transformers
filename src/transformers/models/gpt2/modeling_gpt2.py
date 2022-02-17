@@ -342,6 +342,7 @@ class GPT2Attention(nn.Module):
             (newq.shape[0], newq.shape[1], newq.shape[2],
              newq.shape[2])).cuda()
       else:
+        assert False, "Not happening for now!"
         mykey = "k"
         newkey = self.quantize(key, bit_num=self.kbit, alpha_key=mykey)
         attn_weights = torch.matmul(newq, newkey.transpose(-1, -2)) / (
