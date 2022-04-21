@@ -486,7 +486,8 @@ class GPT2Attention(nn.Module):
         new_row = attn_weights[i, :]
         rram_row = attention_scores_rram[i,:]
         thres_quant = self.soft_thres_layer.alpha
-        new_row[rram_row < thres_quant] = -1000
+        # new_row[rram_row < thres_quant] = -1000
+        new_row[row < thres_quant] = -1000
         new_attention_weights[i, :] = new_row
         var += (
             (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * new_row.size(0) -
