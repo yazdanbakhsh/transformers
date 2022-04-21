@@ -333,7 +333,7 @@ class GPT2Attention(nn.Module):
     if attention_mask is not None:
       assert torch.count_nonzero(attention_mask) == 0, "All are zero!"
       # amir
-      attention_mask[attention_mask == -10000] = -1000
+      attention_mask[attention_mask == -10000] = -10000.
       # rima
       # Apply the attention mask: [Batch, 1, 1, 1024]
       attn_weights = attn_weights + attention_mask
@@ -357,7 +357,6 @@ class GPT2Attention(nn.Module):
     # my_actual_mask [1, 1, 1024, 1024]
     # Rim
 
-
     if self.quant:
       mykey = "q"
       newq = self.quantize(query, bit_num=self.kbit, alpha_key=mykey)
@@ -373,7 +372,7 @@ class GPT2Attention(nn.Module):
             value.size(-1)**0.5)
       if attention_mask is not None:
         assert torch.count_nonzero(attention_mask) == 0, "All are zero!"
-        attention_mask[attention_mask == -10000] = -1000
+        attention_mask[attention_mask == -10000] = -10000
         attn_weights = attn_weights + attention_mask
         if new_attention_weights is not None:
           new_attention_weights = new_attention_weights + attention_mask
