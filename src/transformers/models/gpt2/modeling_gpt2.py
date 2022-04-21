@@ -560,7 +560,8 @@ class GPT2Attention(nn.Module):
         quarter3 = len(torch.where((unpruned_pos[3] + 1) / s< 3 * (1 / 4))[0]) - (quarter2 + quarter1)
         quarter4 = len(torch.where((unpruned_pos[3] + 1 )/ s< 4 * (1 / 4))[0]) - (quarter2 + quarter1 + quarter3)
         # print(quarter1, quarter2,quarter3, quarter4)
-        minmax_seq2 = max((quarter1 + quarter2), (quarter3 + quarter4)) / (min((quarter1 + quarter2), (quarter3 + quarter4))) # add 1 to prevent zero devision
+        # minmax_seq2 = max((quarter1 + quarter2), (quarter3 + quarter4)) / (min((quarter1 + quarter2), (quarter3 + quarter4))) # add 1 to prevent zero devision
+        minmax_seq2 = max((quarter1 + quarter2), (quarter3 + quarter4)) / (min((quarter1 + quarter2), (quarter3 + quarter4)) + 1)
         # minmax_seq2 =1
         delay_seq2 =  max((quarter1 + quarter2), (quarter3 + quarter4)) * 2 / (quarter1 + quarter2 + quarter3 + quarter4)
         # delay_seq2 = 1
