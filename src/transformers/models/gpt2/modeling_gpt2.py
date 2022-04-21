@@ -355,10 +355,7 @@ class GPT2Attention(nn.Module):
                                  self.masked_bias.to(attn_weights.dtype))
     # print("Actual Mask Size: ", my_actual_mask.size())
     # my_actual_mask [1, 1, 1024, 1024]
-    # Rima
-
-
-
+    # Rim
 
 
     if self.quant:
@@ -646,9 +643,9 @@ class GPT2Attention(nn.Module):
     attn_output = torch.matmul(attn_weights, value)
     if self.quant:
       attn_output = self.quantize(attn_output, bit_num=16, alpha_key='out')
-    if self.prun and not self.early_stop:
+    if self.prun and self.early_stop:
       return attn_output, attn_weights, var, sparsity
-    elif self.prun and self.early_stop:
+    elif self.prun and not self.early_stop:
       return attn_output, attn_weights, var, self.sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4
     else:
       return attn_output, attn_weights, 0, 0
