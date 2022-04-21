@@ -474,7 +474,7 @@ class GPT2Attention(nn.Module):
       attention_scores_rram = torch.matmul(q_rram, k_rram.transpose(-1, -2))
 
       mkey = 'scores'
-      attention_scores_rram = self.quantize(attention_scores_rram,  bit_num=5, alpha_key = mkey)
+      attention_scores_rram = self.quantize(attention_scores_rram,  bit_num=8, alpha_key = mkey)
       attention_scores_rram = attention_scores_rram + attention_mask
       attention_scores_rram = attention_scores_rram + attention_mask.transpose(2,3)
     #################################
