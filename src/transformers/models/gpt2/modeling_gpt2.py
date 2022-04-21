@@ -505,7 +505,8 @@ class GPT2Attention(nn.Module):
       if attention_mask is not None:
         pct = PCT # This pct means memory size = pct(0.3) * sequence size
         unmasked_cnt = 0
-        prun_val = 1000 / math.sqrt(self.num_heads) -1  # -1 to avoid same number issue
+        # prun_val = 1000 / math.sqrt(self.num_heads) -1  # -1 to avoid same number issue
+        prun_val = 1000 / (value.size(-1)**0.5) -1
         # prun_val = 1000
         for i in range(0, attention_mask.size(0)):
             unmasked_cnt = unmasked_cnt + (attention_mask[i,:,:,:] != -1000).sum() * (attention_mask[i,:,:,:] != -1000).sum()
@@ -1476,10 +1477,10 @@ class GPT2Model(GPT2PreTrainedModel):
         print("avg # of unpruned K", self.total_unprun_avg / self.total_cnt)
         print("avg # of cases with more # of unpruned K than mem cap", self.total_unprun_ov_pct / self.total_cnt)
         print("avg portion of unmasked part", self.total_avg_unmasked_pct / self.total_cnt)
-        print('avg overlap 1st layer : ', len(self.layer) * self.overlap_first / self.total_cnt)
-        print('avg overlap last layer : ', len(self.layer) * self.overlap_last / self.total_cnt)
-        print('unpruned k first layer : ', len(self.layer) * self.k_first / self.total_cnt)
-        print('unpruned k last layer : ', len(self.layer) * self.k_last / self.total_cnt)
+        print('avg overlap 1st layer : ', len(self.h) * self.overlap_first / self.total_cnt)
+        print('avg overlap last layer : ', len(self.h) * self.overlap_last / self.total_cnt)
+        print('unpruned k first layer : ', len(self.h) * self.k_first / self.total_cnt)
+        print('unpruned k last layer : ', len(self.h) * self.k_last / self.total_cnt)
         # print('total core2,', self.total_core2 / self.total_cnt)
         # print('total core4, ', self.total_core4 / self.total_cnt)
         print('minmax ratio mod 2, ', self.total_minmax_mod2 / self.total_cnt)
