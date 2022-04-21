@@ -36,7 +36,9 @@ from .soft_thres_layer import soft_thres_layer
 EARLY_STOP_FLAG = False
 QUANT_FLAG = False
 PRUN_FLAG = True
-KBIT = 12
+KBIT = 8
+PCT = 1 / 8
+REUSE_BY_UNUSED_SLOT_FLAG = True
 # rima
 
 if version.parse(torch.__version__) >= version.parse("1.6"):
@@ -231,18 +233,38 @@ class GPT2Attention(nn.Module):
       if alpha_key == "k" or alpha_key == "q":
         alpha = 6.0 * std
         print(f"Number of bit for {alpha_key}: ", bit_num)
-      if alpha_key == "scores":
+    #   if alpha_key == "scores":
+    #     alpha = 4 * std
+    #     bit_num = 24
+    #   if alpha_key == "scores_softmax":
+    #     alpha = 1.0
+    #     bit_num = 16
+    #   if alpha_key == "v":
+    #     alpha = 13 * std
+    #     bit_num = 16
+    #   if alpha_key == "out":
+    #     alpha = 15 * std
+    #     bit_num = 20
+      if alpha_key == 'scores':
         alpha = 4 * std
-        bit_num = 24
-      if alpha_key == "scores_softmax":
+        # bit_num = 24
+        # bit_num = 12
+        print('number of bit for scores', bit_num)
+      if alpha_key == 'scores_softmax':
         alpha = 1.0
-        bit_num = 16
-      if alpha_key == "v":
+        # bit_num = 16
+        # bit_num = 8
+        print('number of bit for softmax', bit_num)
+      if alpha_key == 'v':
         alpha = 13 * std
-        bit_num = 16
-      if alpha_key == "out":
+        # bit_num = 16
+        # bit_num = 8
+        print('number of bit for v', bit_num)
+      if alpha_key == 'out':
         alpha = 15 * std
-        bit_num = 20
+        # bit_num = 20
+        # bit_num = 16
+        print('number of bit for out', bit_num)
       self.six_sigma[alpha_key] = alpha
       print("dict key:", alpha_key, "added alpha", alpha)
     else:
@@ -334,6 +356,10 @@ class GPT2Attention(nn.Module):
     # my_actual_mask [1, 1, 1024, 1024]
     # Rima
 
+
+
+
+
     if self.quant:
       mykey = "q"
       newq = self.quantize(query, bit_num=self.kbit, alpha_key=mykey)
@@ -353,6 +379,9 @@ class GPT2Attention(nn.Module):
         attn_weights = attn_weights + attention_mask
         if new_attention_weights is not None:
           new_attention_weights = new_attention_weights + attention_mask
+          # Zheng added ----------------------------------------------------------
+          new_attention_weights = new_attention_weights + attention_mask.transpose(2,3)
+        # new_attention_weights = self.quantize(new_attention_weights,)
     if self.prun and self.early_stop:
       self.sparsity = [0 for _ in range(self.kbit)]
       same_sign = torch.sign(key) * torch.sign(query)
@@ -436,12 +465,30 @@ class GPT2Attention(nn.Module):
       if self.scale_attn_weights:
         attn_weights = attn_weights / (value.size(-1)**0.5)
     elif self.prun and not self.early_stop:
+    ##### Mingu added for RRAM #####
+      key = 'q'
+      q_rram = self.quantize(query,  bit_num=4, alpha_key = key)
+      # print(f'max q diff {torch.max(torch.abs(query_layer - q))}, q mean : {torch.mean(query_layer)}')
+      key = 'k'
+      k_rram = self.quantize(key, bit_num=8, alpha_key = key)
+      # print(f'max k diff {torch.max(torch.abs(key_layer - k))}, k mean : {torch.mean(key_layer)}')
+      attention_scores_rram = torch.matmul(q_rram, k_rram.transpose(-1, -2))
+
+      key = 'scores'
+      attention_scores_rram = self.quantize(attention_scores_rram,  bit_num=5, alpha_key = key)
+      attention_scores_rram = attention_scores_rram + attention_mask
+      attention_scores_rram = attention_scores_rram + attention_mask.transpose(2,3)
+    #################################
       new_attention_weights = torch.zeros(attn_weights.size()).cuda()
       # Iterate over each batch.
       for i in range(0, attn_weights.size(0)):
         # Row Size: (20, 1024, 1024)
         row = attn_weights[i, :]
-        new_row = self.soft_thres_layer(row)
+        # new_row = self.soft_thres_layer(row)  commented for rram
+        new_row = attn_weights[i, :]
+        rram_row = attention_scores_rram[i,:]
+        thres_quant = self.soft_thres_layer.alpha
+        new_row[rram_row < thres_quant] = -1000
         new_attention_weights[i, :] = new_row
         var += (
             (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * new_row.size(0) -
@@ -455,11 +502,137 @@ class GPT2Attention(nn.Module):
       attn_weights = new_attention_weights
       if self.scale_attn_weights:
         attn_weights = attn_weights / (value.size(-1)**0.5)
+
+     #----------Mingu Added——————————————————————————————————————
+      if attention_mask is not None:
+        pct = PCT # This pct means memory size = pct(0.3) * sequence size
+        unmasked_cnt = 0
+        prun_val = 1000 / math.sqrt(self.attention_head_size) -1  # -1 to avoid same number issue
+        # prun_val = 1000
+        for i in range(0, attention_mask.size(0)):
+            unmasked_cnt = unmasked_cnt + (attention_mask[i,:,:,:] != -1000).sum() * (attention_mask[i,:,:,:] != -1000).sum()
+        # mask = [batch, 1, 1, s]
+        unmasked_cnt = unmasked_cnt * attn_weights.size(1)  # head number mulplied
+
+        # print('total', attention_scores.numel(), 'unmasked', unmasked_cnt, 'less than',  (attention_scores > -prun_val).sum() )
+        # print('min', attention_scores.min(), 'prun val', -prun_val)
+        # 2D mask case
+        sparsity    = (   unmasked_cnt - (attn_weights > -prun_val).sum()  ) / (unmasked_cnt)*100
+        # # print(attention_scores.min(), attention_scores.max(),-prun_val)
+        # print(unmasked_cnt ,(attention_scores > -prun_val).sum() )
+        # print(f'new sparsity : {sparsity}')
+        unprun_max  = torch.max(torch.sum((attn_weights > -prun_val), 3))
+        # unprun_avg  = torch.mean(torch.sum((attention_scores > -prun_val), 3).float())
+        unprun_avg_dim1_2 = torch.mean(   torch.sum((attn_weights > -prun_val), 3).float(), [0,1]  )
+        # Apr 14 ----
+        unpruned_pos = torch.where(attn_weights > -prun_val)
+        mod_4 = torch.remainder((unpruned_pos[3] + 1), 4)
+        mod_2 = torch.remainder((unpruned_pos[3] + 1), 2)
+        core4 = torch.unique(mod_4, return_counts = True)[1]
+        core2 = torch.unique(mod_2, return_counts = True)[1]
+        minmax_mod2 = max(core2) / min(core2)
+        delay_mod2 = max(core2) * 2 / sum(core2)
+        minmax_mod4 = max(core4) / min(core4)
+        delay_mod4 = max(core4) * 4 / sum(core4)
+
+
+        s = math.sqrt(unmasked_cnt / (attn_weights.size(0) * attn_weights.size(1)))
+
+        # print('s 1/4', s_quarter)
+        quarter1 = len(torch.where((unpruned_pos[3] + 1) / s < (1 / 4))[0])
+        quarter2 = len(torch.where((unpruned_pos[3] + 1 )/ s< 2 * (1/ 4))[0]) - quarter1
+        quarter3 = len(torch.where((unpruned_pos[3] + 1) / s< 3 * (1 / 4))[0]) - (quarter2 + quarter1)
+        quarter4 = len(torch.where((unpruned_pos[3] + 1 )/ s< 4 * (1 / 4))[0]) - (quarter2 + quarter1 + quarter3)
+        # print(quarter1, quarter2,quarter3, quarter4)
+        minmax_seq2 = max((quarter1 + quarter2), (quarter3 + quarter4)) / (min((quarter1 + quarter2), (quarter3 + quarter4))) # add 1 to prevent zero devision
+        # minmax_seq2 =1
+        delay_seq2 =  max((quarter1 + quarter2), (quarter3 + quarter4)) * 2 / (quarter1 + quarter2 + quarter3 + quarter4)
+        # delay_seq2 = 1
+        minmax_seq4 = max(quarter1, quarter2, quarter3, quarter4) / (min(quarter1, quarter2, quarter3, quarter4) + 1)
+        delay_seq4 =  max(quarter1, quarter2, quarter3, quarter4)  * 4 / (quarter1 + quarter2 + quarter3 + quarter4)
+        # print('minmaxseq2', minmax_seq2, 'minmax seq 4 ', minmax_seq4)
+        # print('delay seq2, ', delay_seq2, 'delay seq4 ', delay_seq4)
+        # -------------
+        unprun_avg = torch.mean(unprun_avg_dim1_2[unprun_avg_dim1_2>0])
+        avg_unmasked_pct = unmasked_cnt/torch.numel(attn_weights)
+        unprun_ov_pct = (torch.sum((attn_weights > -prun_val), 3)>attn_weights.size(3)*pct).sum() / (attn_weights.size(0)*attn_weights.size(1)*attn_weights.size(2)) # probablity that unpruned K number is more than memory capacity
+
+
+        ###############  Calculation for the rows > pct% was survived ###############
+        idx_ov_pct = (torch.sum((attn_weights > -prun_val), 3)>attn_weights.size(3)*pct)  ## all the indices of memory over cases
+        attention_scores_ov_pct = torch.zeros_like(attn_weights) - prun_val   ## all element is reset to be pruned value
+        attention_scores_ov_pct[idx_ov_pct,:] = attn_weights[idx_ov_pct,:]      ## copy only the row where more than 30% is unpruned
+
+        corr_ov_pct = (attention_scores_ov_pct > -prun_val).float()                        ## unpruned part becomes 1
+        common_ov_pct = torch.logical_and(corr_ov_pct[:,:,1:corr_ov_pct.size(2)-1,:], corr_ov_pct[:,:,0:corr_ov_pct.size(2)-2,:])
+        ## above line make 1 for the idx where 2 adjects rows have a common unpruned <- means the vector K / V can be reused
+        common_ov_pct_sum = torch.sum(common_ov_pct,3).float()    ## how many can be reused
+        common_ov_pct_sum[common_ov_pct_sum > attn_weights.size(3)*pct] = attn_weights.size(3)*pct
+        ## Note due to memory limit, maximum reuse is limited by 30%
+
+        new_fetch_avg_ov_pct = 0
+        if (idx_ov_pct.sum()>0):
+            new_fetch_avg_ov_pct = torch.mean(  torch.sum(corr_ov_pct, 3).float()  )  ## >pct case's total new read number
+
+        new_fetch_avg_ov_pct = new_fetch_avg_ov_pct - torch.mean(common_ov_pct_sum)  ## K / V reuse portion should be subtracted
+        ############################################################################
+
+
+        ######################  Calculation for the other rows  ######################
+        #corr[batch, head, q_idx, k_idx]
+        corr = (attn_weights > -prun_val).float()       ## unpruned part becomes 1
+        corr[idx_ov_pct, :] = 0  ## if more than pct% chosen, exclude in this calculation
+        #corr = corr.float() - (attention_mask/1000)*2       ## makes 2 for masked part
+
+        # new_read = (corr[:,:,1:corr.size(2)-1,:] - corr[:,:,0:corr.size(2)-2,:])>0
+        new_read = (corr[:,:,1:corr.size(2)-1,:] - corr[:,:,0:corr.size(2)-2,:])>0
+        new_fetch_max = torch.max(   torch.sum(new_read,3))
+            # below counts the extra mem slot after storing unpruned K / Vs
+        unused_mem_slots = corr.size(3)*pct - torch.sum(corr[:,:,0:corr.size(2)-2,:], 3).float()
+
+        # unused storage space might have the contents for new read. This probablity should be considered
+        # below line shows the probablity that a certain "new read" content is in the un-used slot coincidentally.
+        reuse_prob = unused_mem_slots / (torch.sum((attention_mask>-999),3)).repeat(1,new_read.size(1), new_read.size(2))
+        reuse_prob[reuse_prob>1] = 1.0  # probability cannot be >1
+        new_fetch_max = torch.max(   torch.sum(new_read,3))
+
+        if (REUSE_BY_UNUSED_SLOT_FLAG == 1):
+            new_read_sum = torch.sum(new_read,3)* (1- reuse_prob)  # reuse portion considered
+        else:
+            new_read_sum = torch.sum(new_read,3)
+
+        new_fetch_max = torch.max(   torch.sum(new_read,3))
+
+        ######################  Calculation for intersection  ######################
+        ### for row N: mem over case, for row N+1: normal case ###
+        ### in this case, row N's contents can be reused in the N+1'th row
+        unprun_num_if_ov_pct = 1
+        if (idx_ov_pct.sum()>0):
+            unprun_num_if_ov_pct = corr_ov_pct.sum() / idx_ov_pct.sum()  # how many tokens are unpruned if they are >30% case
+        prob_to_present = ( attn_weights.size(3)*pct / unprun_num_if_ov_pct ) # prob of the vector to be reused in N+1 is present in on-chip memory
+
+        ## reuse case when N: mem over case, and N+1: normal case
+        reuse_intsec_ov_norm = torch.mean(   torch.sum(  torch.logical_and(corr[:,:,1:corr.size(2)-1,:], corr_ov_pct[:,:,0:corr.size(2)-2,:]).float(), 3)  )
+
+        ## reuse case when N: normal case, and N+1: mem over case
+        reuse_intsec_norm_ov = torch.mean(   torch.sum(  torch.logical_and(corr_ov_pct[:,:,1:corr.size(2)-1,:], corr[:,:,0:corr.size(2)-2,:]).float(), 3)  )
+
+        ###################### Total calculation ####################
+        # new_fetch_avg = torch.mean(  torch.sum(new_read,3).float() ) + new_fetch_avg_ov_pct - reuse_intsec_ov_norm * prob_to_present - reuse_intsec_norm_ov
+        new_fetch_avg = torch.mean(  new_read_sum ) + new_fetch_avg_ov_pct - reuse_intsec_ov_norm * prob_to_present - reuse_intsec_norm_ov                  # in above line, 1st term: non ov_pct case <- this term consider reuse case internally
+            #                2nd term: ov_pct case     <- this term considers reuse case within ov_pct cases
+            #                3rd term / 4 terms: intersection of above cases
+        ##############################################################################
     # rime
     # print("Var: ", var)
     # print("Sparsity: ", sparsity)
+    if self.quant:
+            attn_weights = self.quantize(attn_weights, bit_num=12 ,alpha_key='scores')
     attn_weights = nn.functional.softmax(attn_weights, dim=-1)
-
+    if self.quant:
+            attn_weights = self.quantize(attn_weights, bit_num=8 ,alpha_key='scores_softmax')
+    if self.quant:
+            value = self.quantize(value, bit_num=8, alpha_key='v')
     # Downcast (if necessary) back to V's dtype (if in mixed-precision)
     # -- No-Op otherwise
     attn_weights = attn_weights.type(value.dtype)
@@ -470,10 +643,12 @@ class GPT2Attention(nn.Module):
       attn_weights = attn_weights * head_mask
 
     attn_output = torch.matmul(attn_weights, value)
+    if self.quant:
+      attn_output = self.quantize(attn_output, bit_num=16, alpha_key='out')
     if self.prun and not self.early_stop:
       return attn_output, attn_weights, var, sparsity
     elif self.prun and self.early_stop:
-      return attn_output, attn_weights, var, self.sparsity
+      return attn_output, attn_weights, var, self.sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4
     else:
       return attn_output, attn_weights, 0, 0
     return attn_output, attn_weights, 0, 0
@@ -618,7 +793,7 @@ class GPT2Attention(nn.Module):
       attn_output, attn_weights = self._upcast_and_reordered_attn(
           query, key, value, attention_mask, head_mask)
     else:
-      attn_output, attn_weights, var, sparsity = self._attn(
+      attn_output, attn_weights, var, sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4 = self._attn(
           query, key, value, attention_mask, head_mask)
 
     attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
@@ -630,7 +805,7 @@ class GPT2Attention(nn.Module):
       outputs += (attn_weights,)
 
     if self.prun:
-      return outputs, var, sparsity
+      return outputs, var, sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4
     else:
       return outputs, 0, 0
 
@@ -687,7 +862,7 @@ class GPT2Block(nn.Module):
     residual = hidden_states
     hidden_states = self.ln_1(hidden_states)
     # amir
-    attn_outputs, total_var, total_sparsity = self.attn(
+    attn_outputs, total_var, total_sparsity, total_unprun_avg, total_new_fetch_avg, total_unprun_ov_pct, total_avg_unmasked_pct, total_minmax_mod2, total_delay_mod2, total_minmax_mod4, total_delay_mod4, total_minmax_seq2, total_delay_seq2, total_minmax_seq4, total_delay_seq4 = self.attn(
         hidden_states,
         layer_past=layer_past,
         attention_mask=attention_mask,
@@ -710,7 +885,7 @@ class GPT2Block(nn.Module):
         )
       residual = hidden_states
       hidden_states = self.ln_cross_attn(hidden_states)
-      cross_attn_outputs, var, sparsity = self.crossattention(
+      cross_attn_outputs, var, sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4 = self.crossattention(
           hidden_states,
           attention_mask=attention_mask,
           head_mask=head_mask,
@@ -725,6 +900,18 @@ class GPT2Block(nn.Module):
           2:]  # add cross attentions if we output attention weights
       total_var += var
       total_sparsity += sparsity
+      total_unprun_avg += unprun_avg
+      total_new_fetch_avg += new_fetch_avg
+      total_unprun_ov_pct += unprun_ov_pct
+      total_avg_unmasked_pct += avg_unmasked_pct
+      total_minmax_mod2 += minmax_mod2
+      total_minmax_mod4 += minmax_mod4
+      total_delay_mod2 += delay_mod2
+      total_delay_mod4 += delay_mod4
+      total_minmax_seq2 += minmax_seq2
+      total_minmax_seq4 += minmax_seq4
+      total_delay_seq2 += delay_seq2
+      total_delay_seq4 += delay_seq4
     residual = hidden_states
     hidden_states = self.ln_2(hidden_states)
     feed_forward_hidden_states = self.mlp(hidden_states)
@@ -736,7 +923,7 @@ class GPT2Block(nn.Module):
     else:
       outputs = (hidden_states,) + outputs[1:]
     # hidden_states, present, (attentions, cross_attentions)
-    return outputs, total_var, total_sparsity
+    return outputs, total_var, total_sparsity, total_unprun_avg, total_new_fetch_avg, total_unprun_ov_pct, total_avg_unmasked_pct, total_minmax_mod2, total_delay_mod2, total_minmax_mod4, total_delay_mod4, total_minmax_seq2, total_delay_seq2, total_minmax_seq4, total_delay_seq4
 
 
 class GPT2PreTrainedModel(PreTrainedModel):
@@ -1076,6 +1263,29 @@ class GPT2Model(GPT2PreTrainedModel):
     # amir
     total_var = 0
     total_sparsity = 0
+    # Zheng added -----------------
+    self.total_unprun_avg = 0
+    self.total_new_fetch_avg = 0
+    self.total_unprun_ov_pct = 0
+    self.total_avg_unmasked_pct = 0
+    self.total_cnt = 0
+    self.overlap_first = 0
+    self.overlap_last = 0
+    self.unprun_first = 0
+    self.unprun_last = 0
+
+
+    self.total_minmax_mod2 = 0
+    self.total_delay_mod2 = 0
+    self.total_minmax_mod4 = 0
+    self.total_delay_mod4 = 0
+    self.total_minmax_seq2 = 0
+    self.total_delay_seq2 = 0
+    self.total_minmax_seq4 = 0
+    self.total_delay_seq4 = 0
+    # ---------------
+
+
     if self.config.early_stopping:
       total_sparsity = [0 for _ in range(KBIT)]
     # rima
@@ -1220,7 +1430,7 @@ class GPT2Model(GPT2PreTrainedModel):
             encoder_attention_mask,
         )
       else:
-        outputs, var, sparsity = block(
+        outputs, var, sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4 = block(
             hidden_states,
             layer_past=layer_past,
             attention_mask=attention_mask,
@@ -1232,6 +1442,57 @@ class GPT2Model(GPT2PreTrainedModel):
         )
 
       hidden_states = outputs[0]
+      #Zheng added =------------------
+      self.overlap_first = 0
+      self.overlap_last = 0
+      self.k_first = 0
+      self.k_last = 0
+
+      self.total_unprun_avg += unprun_avg
+      self.total_new_fetch_avg += new_fetch_avg
+      self.total_unprun_ov_pct += unprun_ov_pct
+      self.total_avg_unmasked_pct += avg_unmasked_pct
+
+      self.total_minmax_mod2 += minmax_mod2
+      self.total_delay_mod2 += delay_mod2
+      self.total_minmax_mod4 += minmax_mod4
+      self.total_delay_mod4 += delay_mod4
+      self.total_minmax_seq2 += minmax_seq2
+      self.total_delay_seq2 += delay_seq2
+      self.total_minmax_seq4 += minmax_seq4
+      self.total_delay_seq4 += delay_seq4
+
+      self.total_cnt += 1
+
+      if i == 0:
+        self.overlap_first += unprun_avg - new_fetch_avg
+        self.k_first += unprun_avg
+      elif i == len(self.h) - 1:
+          self.overlap_last += unprun_avg - new_fetch_avg
+          self.k_last += unprun_avg
+      self.total_cnt += 1
+
+      if (self.total_cnt % 1000 == 0):
+        #print("cnt",  self.total_cnt)
+        print("avg # of new fetch", self.total_new_fetch_avg / self.total_cnt)
+        print("avg # of unpruned K", self.total_unprun_avg / self.total_cnt)
+        print("avg # of cases with more # of unpruned K than mem cap", self.total_unprun_ov_pct / self.total_cnt)
+        print("avg portion of unmasked part", self.total_avg_unmasked_pct / self.total_cnt)
+        print('avg overlap 1st layer : ', len(self.layer) * self.overlap_first / self.total_cnt)
+        print('avg overlap last layer : ', len(self.layer) * self.overlap_last / self.total_cnt)
+        print('unpruned k first layer : ', len(self.layer) * self.k_first / self.total_cnt)
+        print('unpruned k last layer : ', len(self.layer) * self.k_last / self.total_cnt)
+        # print('total core2,', self.total_core2 / self.total_cnt)
+        # print('total core4, ', self.total_core4 / self.total_cnt)
+        print('minmax ratio mod 2, ', self.total_minmax_mod2 / self.total_cnt)
+        print('minmax ratio mod 4, ', self.total_minmax_mod4 / self.total_cnt)
+        print('minmax ratio seq 2, ', self.total_minmax_seq2 / self.total_cnt)
+        print('minmax ratio seq 4, ', self.total_minmax_seq4 / self.total_cnt)
+        print('delay mod 2, ', self.total_delay_mod2 / self.total_cnt)
+        print('delay mod 4, ', self.total_delay_mod4 / self.total_cnt)
+        print('delay seq 2, ', self.total_delay_seq2 / self.total_cnt)
+        print('delay seq 4, ', self.total_delay_seq4 / self.total_cnt)
+      # -----------------
       # amir
       total_var += var
       if not self.config.early_stopping:
