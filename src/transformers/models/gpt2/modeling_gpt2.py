@@ -269,7 +269,7 @@ class GPT2Attention(nn.Module):
       print("dict key:", alpha_key, "added alpha", alpha)
     else:
       alpha = self.six_sigma.get(alpha_key)
-    print("alpha is: ", alpha)
+    print("w is: ", w)
     w = torch.div(w, alpha)
     w = w.clamp(min=-1, max=1)
     # Quantization, (bit_num - 1) for the sign bit.
