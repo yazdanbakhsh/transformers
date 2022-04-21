@@ -646,7 +646,7 @@ class GPT2Attention(nn.Module):
     if self.prun and self.early_stop:
       return attn_output, attn_weights, var, sparsity
     elif self.prun and not self.early_stop:
-      return attn_output, attn_weights, var, self.sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4
+      return attn_output, attn_weights, var, sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4
     else:
       return attn_output, attn_weights, 0, 0
     return attn_output, attn_weights, 0, 0
