@@ -508,7 +508,7 @@ class GPT2Attention(nn.Module):
         prun_val = 10000 / (value.size(-1)**0.5) -1
         # prun_val = 1000
         for i in range(0, attention_mask.size(0)):
-            unmasked_cnt = unmasked_cnt + (attention_mask[i,:,:,:] != -1000).sum() * (attention_mask[i,:,:,:] != -1000).sum()
+            unmasked_cnt = unmasked_cnt + (attention_mask[i,:,:,:] != -10000).sum() * (attention_mask[i,:,:,:] != -10000).sum()
         # mask = [batch, 1, 1, s]
         unmasked_cnt = unmasked_cnt * attn_weights.size(1)  # head number mulplied
 
