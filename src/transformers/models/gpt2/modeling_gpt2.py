@@ -792,7 +792,9 @@ class GPT2Attention(nn.Module):
       attn_output, attn_weights = self._upcast_and_reordered_attn(
           query, key, value, attention_mask, head_mask)
     else:
-      attn_output, attn_weights, var, sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4 = self._attn(
+      # attn_output, attn_weights, var, sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4 = self._attn(
+      #     query, key, value, attention_mask, head_mask)
+      attn_output, attn_weights, var, sparsity = self._attn(
           query, key, value, attention_mask, head_mask)
 
     attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
