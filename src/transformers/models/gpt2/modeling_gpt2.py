@@ -35,7 +35,7 @@ from .soft_thres_layer import soft_thres_layer
 
 EARLY_STOP_FLAG = False
 QUANT_FLAG = False
-PRUN_FLAG = False
+PRUN_FLAG = True
 KBIT = 8
 PCT = 1 / 8
 REUSE_BY_UNUSED_SLOT_FLAG = True
@@ -305,6 +305,7 @@ class GPT2Attention(nn.Module):
 
     # amir: only scale if we don't do pruning.
     if (not self.prun) and (not self.quant) and (not self.early_stop):
+      assert False, "Oh no! we are not running this!"
       if self.scale_attn_weights:
         attn_weights = attn_weights / (value.size(-1)**0.5)
     # rima
@@ -485,8 +486,7 @@ class GPT2Attention(nn.Module):
         new_row = attn_weights[i, :]
         rram_row = attention_scores_rram[i,:]
         thres_quant = self.soft_thres_layer.alpha
-        # new_row[rram_row < thres_quant] = -1000
-        new_row[row < thres_quant] = -1000
+        new_row[rram_row < thres_quant] = -1e4
         new_attention_weights[i, :] = new_row
         var += (
             (my_actual_mask[0, :, :, :] > -1e4 + 1).sum() * new_row.size(0) -
@@ -792,9 +792,7 @@ class GPT2Attention(nn.Module):
       attn_output, attn_weights = self._upcast_and_reordered_attn(
           query, key, value, attention_mask, head_mask)
     else:
-      # attn_output, attn_weights, var, sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4 = self._attn(
-      #     query, key, value, attention_mask, head_mask)
-      attn_output, attn_weights, var, sparsity = self._attn(
+      attn_output, attn_weights, var, sparsity, unprun_avg, new_fetch_avg, unprun_ov_pct, avg_unmasked_pct, minmax_mod2, delay_mod2, minmax_mod4, delay_mod4, minmax_seq2, delay_seq2,  minmax_seq4, delay_seq4 = self._attn(
           query, key, value, attention_mask, head_mask)
 
     attn_output = self._merge_heads(attn_output, self.num_heads, self.head_dim)
