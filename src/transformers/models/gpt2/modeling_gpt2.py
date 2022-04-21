@@ -305,7 +305,6 @@ class GPT2Attention(nn.Module):
 
     # amir: only scale if we don't do pruning.
     if (not self.prun) and (not self.quant) and (not self.early_stop):
-      assert False, "Oh no! we are not running this!"
       if self.scale_attn_weights:
         attn_weights = attn_weights / (value.size(-1)**0.5)
     # rima
