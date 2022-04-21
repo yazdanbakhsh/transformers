@@ -339,6 +339,8 @@ class GPT2Attention(nn.Module):
       # rima
       # Apply the attention mask: [Batch, 1, 1, 1024]
       attn_weights = attn_weights + attention_mask
+      # Zheng added
+      attn_weights = attn_weights + attention_mask.transpose(2,3)
 
     # print("attention max: ", torch.max(attn_weights))
     # print("attention min: ", torch.min(attn_weights))
@@ -474,9 +476,17 @@ class GPT2Attention(nn.Module):
       attention_scores_rram = torch.matmul(q_rram, k_rram.transpose(-1, -2))
 
       mkey = 'scores'
-      attention_scores_rram = self.quantize(attention_scores_rram,  bit_num=8, alpha_key = mkey)
+      attention_scores_rram = self.quantize(attention_scores_rram,  bit_num=5, alpha_key = mkey)
       attention_scores_rram = attention_scores_rram + attention_mask
       attention_scores_rram = attention_scores_rram + attention_mask.transpose(2,3)
+      if not self.is_cross_attention:
+        # if only "normal" attention layer implements causal mask
+        # AMIR-ISCA: This is running! Not cross attention!
+        query_length, key_length = query.size(-2), key.size(-2)
+        causal_mask = self.bias[:, :, key_length -
+                                query_length:key_length, :key_length].bool()
+        attention_scores_rram = torch.where(causal_mask, attention_scores_rram,
+                                  self.masked_bias.to(attention_scores_rram.dtype))
     #################################
       new_attention_weights = torch.zeros(attn_weights.size()).cuda()
       # Iterate over each batch.
@@ -516,12 +526,11 @@ class GPT2Attention(nn.Module):
 
         prun_val = 10000 / (value.size(-1)**0.5)
 
-        for i in range(0, attention_mask.size(0)):
-            unmasked_cnt = unmasked_cnt + (attention_mask[i,:,:,:] != -10000).sum() * (attention_mask[i,:,:,:] != -10000).sum()
+        for i in range(0, my_actual_mask.size(0)):
+            unmasked_cnt = unmasked_cnt + (my_actual_mask[i,:,:,:] != -10000).sum() * (my_actual_mask[i,:,:,:] != -10000).sum()
         # mask = [batch, 1, 1, s]
         unmasked_cnt = unmasked_cnt * attn_weights.size(1)  # head number mulplied
         assert unmasked_cnt == attn_weights.numel(), 'some values are masked'
-
         # print('total', attention_scores.numel(), 'unmasked', unmasked_cnt, 'less than',  (attention_scores > -prun_val).sum() )
         # print('min', attention_scores.min(), 'prun val', -prun_val)
         # 2D mask case
@@ -542,8 +551,8 @@ class GPT2Attention(nn.Module):
         delay_mod2 = max(core2) * 2 / sum(core2)
         minmax_mod4 = max(core4) / min(core4)
         delay_mod4 = max(core4) * 4 / sum(core4)
-
-
+        # Please comment out this print line after the issue is found
+        print(f'minmax_mod 2 {minmax_mod2}, delay mod 2 {delay_mod2}, minmax mod 4 {minmax_mod4}, delay mod 4{delay_mod4}')
         s = math.sqrt(unmasked_cnt / (attn_weights.size(0) * attn_weights.size(1)))
 
         # print('s 1/4', s_quarter)
@@ -600,7 +609,7 @@ class GPT2Attention(nn.Module):
 
         # unused storage space might have the contents for new read. This probablity should be considered
         # below line shows the probablity that a certain "new read" content is in the un-used slot coincidentally.
-        reuse_prob = unused_mem_slots / (torch.sum((attention_mask>-999),3)).repeat(1,new_read.size(1), new_read.size(2))
+        reuse_prob = unused_mem_slots / (torch.sum((my_actual_mask>-999),3)).repeat(1,new_read.size(1), new_read.size(2))
         reuse_prob[reuse_prob>1] = 1.0  # probability cannot be >1
         new_fetch_max = torch.max(   torch.sum(new_read,3))
 
