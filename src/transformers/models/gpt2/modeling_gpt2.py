@@ -1470,7 +1470,7 @@ class GPT2Model(GPT2PreTrainedModel):
           self.k_last += unprun_avg
       self.total_cnt += 1
 
-      if (self.total_cnt % 1000 == 0):
+      if (self.total_cnt % 5 == 0):
         #print("cnt",  self.total_cnt)
         print("avg # of new fetch", self.total_new_fetch_avg / self.total_cnt)
         print("avg # of unpruned K", self.total_unprun_avg / self.total_cnt)
