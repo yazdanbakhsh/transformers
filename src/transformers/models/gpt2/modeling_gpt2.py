@@ -35,7 +35,7 @@ from .soft_thres_layer import soft_thres_layer
 
 EARLY_STOP_FLAG = False
 QUANT_FLAG = False
-PRUN_FLAG = True
+PRUN_FLAG = False
 KBIT = 8
 PCT = 1 / 8
 REUSE_BY_UNUSED_SLOT_FLAG = True
