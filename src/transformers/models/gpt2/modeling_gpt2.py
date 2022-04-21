@@ -467,16 +467,16 @@ class GPT2Attention(nn.Module):
         attn_weights = attn_weights / (value.size(-1)**0.5)
     elif self.prun and not self.early_stop:
     ##### Mingu added for RRAM #####
-      key = 'q'
-      q_rram = self.quantize(query,  bit_num=4, alpha_key = key)
+      mkey = 'q'
+      q_rram = self.quantize(query,  bit_num=4, alpha_key = mkey)
       # print(f'max q diff {torch.max(torch.abs(query_layer - q))}, q mean : {torch.mean(query_layer)}')
-      key = 'k'
-      k_rram = self.quantize(key, bit_num=8, alpha_key = key)
+      mkey = 'k'
+      k_rram = self.quantize(key, bit_num=8, alpha_key = mkey)
       # print(f'max k diff {torch.max(torch.abs(key_layer - k))}, k mean : {torch.mean(key_layer)}')
       attention_scores_rram = torch.matmul(q_rram, k_rram.transpose(-1, -2))
 
-      key = 'scores'
-      attention_scores_rram = self.quantize(attention_scores_rram,  bit_num=5, alpha_key = key)
+      mkey = 'scores'
+      attention_scores_rram = self.quantize(attention_scores_rram,  bit_num=5, alpha_key = mkey)
       attention_scores_rram = attention_scores_rram + attention_mask
       attention_scores_rram = attention_scores_rram + attention_mask.transpose(2,3)
     #################################
