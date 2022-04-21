@@ -520,6 +520,7 @@ class GPT2Attention(nn.Module):
             unmasked_cnt = unmasked_cnt + (attention_mask[i,:,:,:] != -10000).sum() * (attention_mask[i,:,:,:] != -10000).sum()
         # mask = [batch, 1, 1, s]
         unmasked_cnt = unmasked_cnt * attn_weights.size(1)  # head number mulplied
+        assert unmasked_cnt == attn_weights.numel(), 'some values are masked'
 
         # print('total', attention_scores.numel(), 'unmasked', unmasked_cnt, 'less than',  (attention_scores > -prun_val).sum() )
         # print('min', attention_scores.min(), 'prun val', -prun_val)
