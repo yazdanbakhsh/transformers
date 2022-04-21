@@ -269,7 +269,7 @@ class GPT2Attention(nn.Module):
       print("dict key:", alpha_key, "added alpha", alpha)
     else:
       alpha = self.six_sigma.get(alpha_key)
-    print("w is: ", w)
+    # print("w is: ", w)
     w = torch.div(w, alpha)
     w = w.clamp(min=-1, max=1)
     # Quantization, (bit_num - 1) for the sign bit.
@@ -508,7 +508,7 @@ class GPT2Attention(nn.Module):
       if attention_mask is not None:
         pct = PCT # This pct means memory size = pct(0.3) * sequence size
         unmasked_cnt = 0
-        prun_val = 1000 / math.sqrt(self.attention_head_size) -1  # -1 to avoid same number issue
+        prun_val = 1000 / math.sqrt(self.num_heads) -1  # -1 to avoid same number issue
         # prun_val = 1000
         for i in range(0, attention_mask.size(0)):
             unmasked_cnt = unmasked_cnt + (attention_mask[i,:,:,:] != -1000).sum() * (attention_mask[i,:,:,:] != -1000).sum()
