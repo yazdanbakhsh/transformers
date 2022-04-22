@@ -611,7 +611,7 @@ class GPT2Attention(nn.Module):
         # unused storage space might have the contents for new read. This probablity should be considered
         # below line shows the probablity that a certain "new read" content is in the un-used slot coincidentally.
         print(unused_mem_slots.size(), (torch.sum((my_actual_mask>-9999),3)).repeat(1,new_read.size(1),1).size())
-        reuse_prob = unused_mem_slots / (torch.sum((my_actual_mask>-9999),3)).repeat(1,unused_mem_slots.size(1),1)
+        reuse_prob = unused_mem_slots / (torch.sum((my_actual_mask[:,:,0:my_actual_mask.size(2)-2,:]>-9999),3)).repeat(1,unused_mem_slots.size(1),1)
         reuse_prob[reuse_prob>1] = 1.0  # probability cannot be >1
         new_fetch_max = torch.max(   torch.sum(new_read,3))
 
