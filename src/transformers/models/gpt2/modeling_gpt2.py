@@ -1492,6 +1492,7 @@ class GPT2Model(GPT2PreTrainedModel):
         self.overlap_first += unprun_avg - new_fetch_avg
         self.k_first += unprun_avg
       elif i == len(self.h) - 1:
+          print(f'unprun_avg = {unprun_avg}, new_fetch_avg = {new_fetch_avg}')
           self.overlap_last += unprun_avg - new_fetch_avg
           self.k_last += unprun_avg
       self.total_cnt += 1
