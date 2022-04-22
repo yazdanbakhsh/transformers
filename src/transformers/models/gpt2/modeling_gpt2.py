@@ -487,6 +487,13 @@ class GPT2Attention(nn.Module):
                                 query_length:key_length, :key_length].bool()
         attention_scores_rram = torch.where(causal_mask, attention_scores_rram,
                                   self.masked_bias.to(attention_scores_rram.dtype))
+      if attention_mask is not None:
+        assert torch.count_nonzero(attention_mask) == 0, "All are zero!"
+        # amir
+        attention_mask[attention_mask == -10000] = -10000
+        # rima
+        # Apply the attention mask: [Batch, 1, 1, 1024]
+        attention_scores_rram = attention_scores_rram + attention_mask
     #################################
       new_attention_weights = torch.zeros(attn_weights.size()).cuda()
       # Iterate over each batch.
