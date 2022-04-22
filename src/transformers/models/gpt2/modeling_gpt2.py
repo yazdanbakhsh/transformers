@@ -340,7 +340,7 @@ class GPT2Attention(nn.Module):
       # Apply the attention mask: [Batch, 1, 1, 1024]
       attn_weights = attn_weights + attention_mask
       # Zheng added
-      attn_weights = attn_weights + attention_mask.transpose(2,3)
+      # attn_weights = attn_weights + attention_mask.transpose(2,3)
 
     # print("attention max: ", torch.max(attn_weights))
     # print("attention min: ", torch.min(attn_weights))
@@ -381,7 +381,7 @@ class GPT2Attention(nn.Module):
         if new_attention_weights is not None:
           new_attention_weights = new_attention_weights + attention_mask
           # Zheng added ----------------------------------------------------------
-          new_attention_weights = new_attention_weights + attention_mask.transpose(2,3)
+          # new_attention_weights = new_attention_weights + attention_mask.transpose(2,3)
         # new_attention_weights = self.quantize(new_attention_weights,)
     if self.prun and self.early_stop:
       self.sparsity = [0 for _ in range(self.kbit)]
