@@ -602,6 +602,7 @@ class GPT2Attention(nn.Module):
         #corr = corr.float() - (attention_mask/1000)*2       ## makes 2 for masked part
 
         # new_read = (corr[:,:,1:corr.size(2)-1,:] - corr[:,:,0:corr.size(2)-2,:])>0
+        print(unused_mem_slots.size(), (torch.sum((my_actual_mask>-9999),3)).repeat(1,new_read.size(1),1).size())
         new_read = (corr[:,:,1:corr.size(2)-1,:] - corr[:,:,0:corr.size(2)-2,:])>0
         new_fetch_max = torch.max(   torch.sum(new_read,3))
             # below counts the extra mem slot after storing unpruned K / Vs
