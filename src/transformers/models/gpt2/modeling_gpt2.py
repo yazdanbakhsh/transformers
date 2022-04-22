@@ -477,8 +477,8 @@ class GPT2Attention(nn.Module):
 
       mkey = 'scores'
       attention_scores_rram = self.quantize(attention_scores_rram,  bit_num=5, alpha_key = mkey)
-      attention_scores_rram = attention_scores_rram + attention_mask
-      attention_scores_rram = attention_scores_rram + attention_mask.transpose(2,3)
+#       attention_scores_rram = attention_scores_rram + attention_mask
+#       attention_scores_rram = attention_scores_rram + attention_mask.transpose(2,3)
       if not self.is_cross_attention:
         # if only "normal" attention layer implements causal mask
         # AMIR-ISCA: This is running! Not cross attention!
