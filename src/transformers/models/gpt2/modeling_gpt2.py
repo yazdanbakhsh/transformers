@@ -39,7 +39,7 @@ PRUN_FLAG = True
 KBIT = 8
 PCT = 1 / 8
 REUSE_BY_UNUSED_SLOT_FLAG = True
-USE_ISCA_PRUN = False
+USE_ISCA_PRUN = True
 USE_RRAM = True
 # rima
 
