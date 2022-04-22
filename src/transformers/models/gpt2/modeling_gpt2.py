@@ -517,6 +517,7 @@ class GPT2Attention(nn.Module):
       sparsity = (1 - non_sparsity)
       attn_weights = new_attention_weights
       if self.scale_attn_weights:
+        assert self.scale_attn_weights, 'not scaling weights'
         attn_weights = attn_weights / (value.size(-1)**0.5)
 
      #----------Mingu Added——————————————————————————————————————
