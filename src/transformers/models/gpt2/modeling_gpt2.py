@@ -1486,7 +1486,7 @@ class GPT2Model(GPT2PreTrainedModel):
       self.total_minmax_seq4 += minmax_seq4
       self.total_delay_seq4 += delay_seq4
 
-      self.total_cnt += 1
+      
       if i == 0:
         print(f'unprun_avg = {unprun_avg}, new_fetch_avg = {new_fetch_avg}')
         self.overlap_first += unprun_avg - new_fetch_avg
