@@ -1490,11 +1490,13 @@ class GPT2Model(GPT2PreTrainedModel):
       if i == 0:
         print(f'unprun_avg = {unprun_avg}, new_fetch_avg = {new_fetch_avg}')
         self.overlap_first += unprun_avg - new_fetch_avg
+        print(f'curretn overlap 1st {self.overlap_first}')
         self.k_first += unprun_avg
       elif i == len(self.h) - 1:
           print(f'unprun_avg = {unprun_avg}, new_fetch_avg = {new_fetch_avg}')
           self.overlap_last += unprun_avg - new_fetch_avg
           self.k_last += unprun_avg
+          print(f'curretn overlap last {self.overlap_last}')
       self.total_cnt += 1
 
       if (self.total_cnt % 5 == 0):
@@ -1505,6 +1507,7 @@ class GPT2Model(GPT2PreTrainedModel):
         print("avg portion of unmasked part", self.total_avg_unmasked_pct / self.total_cnt)
         print('avg overlap 1st layer : ', len(self.h) * self.overlap_first / self.total_cnt)
         print('avg overlap last layer : ', len(self.h) * self.overlap_last / self.total_cnt)
+        print('raw overlap 1st : ', self.overlap_first)
         print('unpruned k first layer : ', len(self.h) * self.k_first / self.total_cnt)
         print('unpruned k last layer : ', len(self.h) * self.k_last / self.total_cnt)
         # print('total core2,', self.total_core2 / self.total_cnt)
