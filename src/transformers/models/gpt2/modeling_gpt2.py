@@ -37,7 +37,7 @@ EARLY_STOP_FLAG = False
 QUANT_FLAG = False
 PRUN_FLAG = True
 KBIT = 8
-PCT = 1 / 8
+PCT = 1 / 4
 REUSE_BY_UNUSED_SLOT_FLAG = True
 USE_ISCA_PRUN = True
 USE_RRAM = True
@@ -1482,8 +1482,8 @@ class GPT2Model(GPT2PreTrainedModel):
       self.total_delay_seq4 += delay_seq4
 
       self.total_cnt += 1
-
       if i == 0:
+        print(f'unprun_avg = {unprun_avg}, new_fetch_avg = {new_fetch_avg}')
         self.overlap_first += unprun_avg - new_fetch_avg
         self.k_first += unprun_avg
       elif i == len(self.h) - 1:
