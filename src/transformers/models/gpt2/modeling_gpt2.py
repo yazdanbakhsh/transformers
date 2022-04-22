@@ -526,10 +526,14 @@ class GPT2Attention(nn.Module):
 
         prun_val = 10000 / (value.size(-1)**0.5)
 
+        # for i in range(0, my_actual_mask.size(0)):
+        #     unmasked_cnt = unmasked_cnt + (my_actual_mask[i,:,:,:] != -10000).sum() * (my_actual_mask[i,:,:,:] != -10000).sum()
         for i in range(0, my_actual_mask.size(0)):
-            unmasked_cnt = unmasked_cnt + (my_actual_mask[i,:,:,:] != -10000).sum() * (my_actual_mask[i,:,:,:] != -10000).sum()
+            unmasked_cnt = unmasked_cnt + (my_actual_mask[i,:,:,:] != -10000).sum()
         # mask = [batch, 1, 1, s]
-        unmasked_cnt = unmasked_cnt * attn_weights.size(1)  # head number mulplied
+        unmasked_cnt = unmasked_cnt * attn_weights.size(0) * attn_weights.size(1)  # head and batch number mulplied
+        # mask = [batch, 1, 1, s]
+        # unmasked_cnt = unmasked_cnt * attn_weights.size(1)  # head number mulplied
         # print('total', attention_scores.numel(), 'unmasked', unmasked_cnt, 'less than',  (attention_scores > -prun_val).sum() )
         # print('min', attention_scores.min(), 'prun val', -prun_val)
         # 2D mask case
