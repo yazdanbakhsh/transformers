@@ -35,7 +35,7 @@ from .soft_thres_layer import soft_thres_layer
 
 EARLY_STOP_FLAG = False
 QUANT_FLAG = False
-PRUN_FLAG = False
+PRUN_FLAG = True
 KBIT = 8
 PCT = 1 / 2
 REUSE_BY_UNUSED_SLOT_FLAG = True
@@ -199,7 +199,7 @@ class GPT2Attention(nn.Module):
       self.soft_thres_layer = soft_thres_layer(
           s=10.0, c=-1e4, alpha=config.threshold)
     self.early_stop = config.early_stopping
-    self.quant = config.quant
+    self.quant = QUANT_FLAG
     self.kbit = KBIT
     self.six_sigma = dict()
     # rima
