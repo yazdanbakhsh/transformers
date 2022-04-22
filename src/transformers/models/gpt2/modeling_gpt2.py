@@ -35,7 +35,7 @@ from .soft_thres_layer import soft_thres_layer
 
 EARLY_STOP_FLAG = False
 QUANT_FLAG = False
-PRUN_FLAG = True
+PRUN_FLAG = False
 KBIT = 8
 PCT = 1 / 2
 REUSE_BY_UNUSED_SLOT_FLAG = True
@@ -307,7 +307,7 @@ class GPT2Attention(nn.Module):
 
     # amir: only scale if we don't do pruning.
     if (not self.prun) and (not self.quant) and (not self.early_stop):
-      assert False, "Oh no! we are not running this!"
+      #assert False, "Oh no! we are not running this!"
       if self.scale_attn_weights:
         attn_weights = attn_weights / (value.size(-1)**0.5)
     # rima
